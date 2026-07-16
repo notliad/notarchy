@@ -377,6 +377,7 @@ main() {
     install_yay
     ui_info "Installing AUR packages"
     install_aur_packages
+    run arch-chroot /mnt sudo -u "$username" elephant service enable
   fi
   ui_info "Applying NotArchy configs"
   install_dotfiles
