@@ -22,7 +22,7 @@ submodule it, or merge from it automatically.
 From the official Arch ISO:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/notliad/notarchy/main/boot.sh | bash
+curl -fsSL https://raw.githubusercontent.com/notliad/notarchy/master/boot.sh | bash
 ```
 
 Or manually:
