@@ -7,7 +7,7 @@ model. This repository is the source of truth for Notarchy configs.
 
 - Start from the official Arch ISO.
 - Run `install/notarchy-install` from the live environment.
-- Wipe one selected disk after exact path confirmation.
+- Wipe one selected disk chosen from a numbered list.
 - Install UEFI + `systemd-boot` + LUKS + Btrfs.
 - Install a lean Hyprland desktop with Ghostty, Google Chrome stable, VS Code,
   Waybar, Walker, and `greetd + tuigreet`.
@@ -22,8 +22,14 @@ submodule it, or merge from it automatically.
 From the official Arch ISO:
 
 ```sh
+curl -fsSL https://raw.githubusercontent.com/notliad/notarchy/main/boot.sh | bash
+```
+
+Or manually:
+
+```sh
 pacman -Sy --needed git
-git clone <your-notarchy-repo-url> /tmp/notarchy
+git clone https://github.com/notliad/notarchy.git /tmp/notarchy
 cd /tmp/notarchy
 ./install/notarchy-install
 ```
