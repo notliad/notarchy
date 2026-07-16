@@ -50,6 +50,13 @@ Review without executing destructive commands:
 ./install/notarchy-install --dry-run
 ```
 
+Fast local checks:
+
+```sh
+scripts/test-dry-run
+scripts/test-vm --reset
+```
+
 ## Installed-system commands
 
 ```sh

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+output="$(
+  NOTARCHY_NO_GUM=1 "$repo_root/install/notarchy-install" \
+    --dry-run \
+    --disk /dev/vda \
+    --hostname notarchy \
+    --username notliad \
+    --password notarchy \
+    --yes
+)"
+
+required=(
+  "Selected disk: /dev/vda"
+  "+ pacstrap -K /mnt"
+  "+ arch-chroot /mnt mkinitcpio -P"
+  "+ arch-chroot /mnt bootctl install"
+  "+ arch-chroot /mnt ln -sf /home/notliad/.local/share/notarchy/bin/notarchy-apply /usr/local/bin/notarchy-apply"
+  "+ arch-chroot /mnt sudo -u notliad /home/notliad/.local/share/notarchy/bin/notarchy-apply"
+)
+
+for needle in "${required[@]}"; do
+  if ! grep -Fq "$needle" <<<"$output"; then
+    printf 'Missing expected dry-run output: %s\n\n%s\n' "$needle" "$output" >&2
+    exit 1
+  fi
+done
+
+printf '%s\n' "$output"
+printf '\nnotarchy installer dry-run passed\n'

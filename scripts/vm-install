@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname -- "${BASH_SOURCE[0]}")/.."
+exec ./install/notarchy-install \
+  --disk /dev/vda \
+  --hostname notarchy \
+  --username notliad \
+  --password notarchy \
+  --yes

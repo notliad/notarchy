@@ -4,11 +4,16 @@ set -euo pipefail
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 dry_run=false
 target_disk=""
+hostname=""
+username=""
+install_password=""
+install_password_confirm=""
+assume_yes=false
 tty=/dev/tty
 
 usage() {
   cat <<USAGE
-Usage: ${0##*/} [--dry-run] [--disk /dev/XXX]
+Usage: ${0##*/} [--dry-run] [--disk /dev/XXX] [--hostname NAME] [--username USER] [--password PASS] [--yes]
 
 Destructive whole-disk Arch installer for Notarchy V1.
 USAGE
@@ -18,6 +23,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) dry_run=true; shift ;;
     --disk) target_disk="${2:-}"; shift 2 ;;
+    --hostname) hostname="${2:-}"; shift 2 ;;
+    --username) username="${2:-}"; shift 2 ;;
+    --password) install_password="${2:-}"; install_password_confirm="${2:-}"; shift 2 ;;
+    --yes) assume_yes=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
   esac
@@ -216,13 +225,15 @@ pick_disk() {
 }
 
 prompt_identity() {
-  ask 'Hostname: ' hostname
-  ask 'Username: ' username
+  [[ -n "$hostname" ]] || ask 'Hostname: ' hostname
+  [[ -n "$username" ]] || ask 'Username: ' username
   validate_name hostname "$hostname" '^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$'
   validate_name username "$username" '^[a-z_][a-z0-9_-]{0,31}$'
 
-  ask_secret 'Password for disk, user, and root: ' install_password
-  ask_secret 'Confirm password: ' install_password_confirm
+  if [[ -z "$install_password" ]]; then
+    ask_secret 'Password for disk, user, and root: ' install_password
+    ask_secret 'Confirm password: ' install_password_confirm
+  fi
   [[ -n "$install_password" && "$install_password" == "$install_password_confirm" ]] || {
     printf 'Passwords are empty or do not match.\n' >&2
     exit 1
@@ -236,6 +247,7 @@ confirm_install() {
     ui_info "$summary"
     return
   fi
+  "$assume_yes" && return
 
   if have_gum; then
     gum confirm "$summary" --affirmative "Install" --negative "Cancel" <"$tty" || exit 1
