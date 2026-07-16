@@ -44,6 +44,7 @@ brightnessctl
 wl-clipboard
 grim
 slurp
+swaybg
 uwsm
 ttf-jetbrains-mono-nerd
 noto-fonts

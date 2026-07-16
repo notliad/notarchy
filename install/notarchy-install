@@ -292,6 +292,7 @@ install_aur_packages() {
 
 install_dotfiles() {
   run mkdir -p "/mnt/home/$username/.local/share"
+  run arch-chroot /mnt chown -R "$username:$username" "/home/$username/.local"
   run cp -a "$repo_root" "/mnt/home/$username/.local/share/notarchy"
   run arch-chroot /mnt chown -R "$username:$username" "/home/$username/.local/share/notarchy"
   for bin in "$repo_root"/bin/notarchy-*; do

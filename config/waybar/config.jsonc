@@ -56,7 +56,7 @@
     "tooltip-format-disconnected": "Disconnected",
     "interval": 3,
     "spacing": 1,
-    "on-click": "ghostty -e nmtui",
+    "on-click": "notarchy-floating-tui impala",
   },
   "battery": {
     "format-discharging": "{icon} {capacity}%",
@@ -81,10 +81,11 @@
     "format-disabled": "󰂲",
     "format-connected": "",
     "tooltip-format": "Devices connected: {num_connections}",
+    "on-click": "notarchy-floating-tui bluetui",
   },
   "pulseaudio": {
     "format": "{icon}",
-    "on-click": "pamixer -t",
+    "on-click": "notarchy-floating-tui wiremix",
     "on-click-right": "pamixer -t",
     "tooltip-format": "Playing at {volume}%",
     "scroll-step": 5,

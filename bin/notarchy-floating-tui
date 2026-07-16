@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cmd="${1:-}"
+case "$cmd" in
+  bluetui|impala|wiremix) ;;
+  *) printf 'Usage: %s <bluetui|impala|wiremix>\n' "${0##*/}" >&2; exit 2 ;;
+esac
+
+exec ghostty --class="org.notarchy.$cmd" -e "$cmd"
