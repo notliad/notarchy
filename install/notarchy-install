@@ -36,6 +36,40 @@ run() {
   fi
 }
 
+have_gum() {
+  [[ ${NOTARCHY_NO_GUM:-0} != 1 ]] && command -v gum >/dev/null 2>&1
+}
+
+ui_title() {
+  if have_gum; then
+    gum style --border rounded --border-foreground 114 --padding "1 3" --margin "1 0" --bold "NotArchy Installer"
+  else
+    printf '\n== NotArchy Installer ==\n\n'
+  fi
+}
+
+ui_info() {
+  if have_gum; then
+    gum style --foreground 114 "$*"
+  else
+    printf '%s\n' "$*"
+  fi
+}
+
+run_step() {
+  local title="$1"
+  shift
+
+  if "$dry_run"; then
+    run "$@"
+  elif have_gum; then
+    gum spin --spinner dot --title "$title" --show-error -- "$@"
+  else
+    printf '%s\n' "$title"
+    "$@"
+  fi
+}
+
 retry() {
   local attempts=5 delay=10 n=1
   until "$@"; do
@@ -50,13 +84,21 @@ retry() {
 
 ask() {
   local prompt="$1" var="$2"
-  read -r -p "$prompt" "$var" <"$tty"
+  if have_gum; then
+    printf -v "$var" '%s' "$(gum input --prompt "$prompt" <"$tty")"
+  else
+    read -r -p "$prompt" "$var" <"$tty"
+  fi
 }
 
 ask_secret() {
   local prompt="$1" var="$2"
-  read -r -s -p "$prompt" "$var" <"$tty"
-  printf '\n' >"$tty"
+  if have_gum; then
+    printf -v "$var" '%s' "$(gum input --password --prompt "$prompt" <"$tty")"
+  else
+    read -r -s -p "$prompt" "$var" <"$tty"
+    printf '\n' >"$tty"
+  fi
 }
 
 write_target_files() {
@@ -86,7 +128,7 @@ linux /vmlinuz-linux
 initrd /intel-ucode.img
 initrd /amd-ucode.img
 initrd /initramfs-linux.img
-options rd.luks.name=$uuid=cryptroot root=/dev/mapper/cryptroot rootflags=subvol=@ rw
+options rd.luks.name=$uuid=cryptroot root=/dev/mapper/cryptroot rootflags=subvol=@ rw quiet splash
 BOOT
 
   cat > /mnt/etc/greetd/config.toml <<GREETD
@@ -94,7 +136,7 @@ BOOT
 vt = 1
 
 [default_session]
-command = "tuigreet --cmd 'uwsm start hyprland.desktop'"
+command = "tuigreet --greeting 'NotArchy' --asterisks --time --remember --cmd notarchy-start-hyprland"
 user = "greeter"
 GREETD
 }
@@ -133,7 +175,7 @@ part_suffix() {
 }
 
 pick_disk() {
-  local disks=() choice i disk model size
+  local disks=() choice i disk model size options=()
   mapfile -t disks < <(lsblk -dn -e 7,11 -o PATH,MODEL,SIZE | grep -v '^/dev/zram')
 
   if [[ -n "$target_disk" ]]; then
@@ -150,20 +192,27 @@ pick_disk() {
     exit 1
   }
 
-  printf 'Disks:\n'
+  ui_info "Choose the disk to erase and install NotArchy:"
   for i in "${!disks[@]}"; do
     read -r disk model size <<<"${disks[$i]}"
-    printf '  %s) %s %s %s\n' "$((i + 1))" "$disk" "$size" "$model"
+    options+=("$((i + 1))) $disk $size $model")
   done
 
+  printf 'Disks:\n'
+  if have_gum; then
+    printf '%s\n' "${options[@]}" | gum style --border rounded --border-foreground 114 --padding "1 2"
+  else
+    printf '  %s\n' "${options[@]}"
+  fi
   ask 'Install to disk number: ' choice
+
   [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#disks[@]} )) || {
     printf 'Invalid disk choice.\n' >&2
     exit 1
   }
 
   read -r target_disk _ <<<"${disks[$((choice - 1))]}"
-  printf 'Selected disk: %s. This disk will be erased.\n' "$target_disk"
+  ui_info "Selected disk: $target_disk. This disk will be erased."
 }
 
 prompt_identity() {
@@ -178,6 +227,23 @@ prompt_identity() {
     printf 'Passwords are empty or do not match.\n' >&2
     exit 1
   }
+}
+
+confirm_install() {
+  local summary="Install NotArchy on $target_disk as $username@$hostname. This erases $target_disk."
+
+  if "$dry_run"; then
+    ui_info "$summary"
+    return
+  fi
+
+  if have_gum; then
+    gum confirm "$summary" --affirmative "Install" --negative "Cancel" <"$tty" || exit 1
+  else
+    local answer
+    ask "$summary Type yes to continue: " answer
+    [[ "$answer" == "yes" ]] || exit 1
+  fi
 }
 
 format_and_open_luks() {
@@ -234,7 +300,15 @@ install_dotfiles() {
   run arch-chroot /mnt sudo -u "$username" /home/"$username"/.local/share/notarchy/bin/notarchy-apply
 }
 
+install_plymouth_theme() {
+  run mkdir -p /mnt/usr/share/plymouth/themes/notarchy
+  run cp -a "$repo_root/assets/plymouth/notarchy/." /mnt/usr/share/plymouth/themes/notarchy/
+  run arch-chroot /mnt plymouth-set-default-theme notarchy
+}
+
 main() {
+  ui_title
+
   if ! "$dry_run"; then
     require_root
     require_uefi
@@ -244,6 +318,7 @@ main() {
 
   pick_disk
   prompt_identity
+  confirm_install
 
   local suffix efi_part root_part uuid official_packages
   suffix="$(part_suffix "$target_disk")"
@@ -269,7 +344,7 @@ main() {
   run mount "$efi_part" /mnt/boot
 
   mapfile -t official_packages < <(grep -Ev '^\s*(#|$)' "$repo_root/packages/pacman.txt")
-  run pacstrap -K /mnt "${official_packages[@]}"
+  run_step "Installing base system" pacstrap -K /mnt "${official_packages[@]}"
 
   run arch-chroot /mnt ln -sf /usr/share/zoneinfo/UTC /etc/localtime
   run arch-chroot /mnt hwclock --systohc
@@ -278,7 +353,7 @@ main() {
   else
     printf '%s\n%s\n' 'en_US.UTF-8 UTF-8' 'pt_BR.UTF-8 UTF-8' > /mnt/etc/locale.gen
   fi
-  run arch-chroot /mnt locale-gen
+  run_step "Generating locales" arch-chroot /mnt locale-gen
 
   run arch-chroot /mnt useradd -m -G wheel -s /bin/bash "$username"
   run sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /mnt/etc/sudoers
@@ -288,19 +363,27 @@ main() {
   else
     uuid="$(blkid -s UUID -o value "$root_part")"
   fi
-  run sed -i 's/^HOOKS=.*/HOOKS=(base systemd autodetect microcode modconf kms keyboard sd-vconsole block sd-encrypt filesystems fsck)/' /mnt/etc/mkinitcpio.conf
-  run arch-chroot /mnt mkinitcpio -P
-  run arch-chroot /mnt bootctl install
+  run sed -i 's/^HOOKS=.*/HOOKS=(base systemd plymouth autodetect microcode modconf kms keyboard sd-vconsole block sd-encrypt filesystems fsck)/' /mnt/etc/mkinitcpio.conf
+  install_plymouth_theme
+  run_step "Building initramfs" arch-chroot /mnt mkinitcpio -P
+  run_step "Installing bootloader" arch-chroot /mnt bootctl install
   write_target_files "$uuid"
   run arch-chroot /mnt systemctl enable NetworkManager bluetooth greetd power-profiles-daemon
 
   if ! "$dry_run"; then
+    ui_info "Installing yay"
     install_yay
+    ui_info "Installing AUR packages"
     install_aur_packages
   fi
+  ui_info "Applying NotArchy configs"
   install_dotfiles
 
-  printf '\nNotarchy install complete. Reboot when ready.\n'
+  if have_gum; then
+    gum style --border rounded --border-foreground 114 --padding "1 3" --margin "1 0" "NotArchy install complete. Reboot when ready."
+  else
+    printf '\nNotArchy install complete. Reboot when ready.\n'
+  fi
 }
 
 main "$@"

@@ -12,10 +12,12 @@ efibootmgr
 git
 go
 sudo
+gum
 networkmanager
 bluez
 bluez-utils
 power-profiles-daemon
+plymouth
 
 # Desktop
 hyprland
