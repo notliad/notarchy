@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 dry_run=false
 target_disk=""
+tty=/dev/tty
 
 usage() {
   cat <<USAGE
@@ -45,6 +46,17 @@ retry() {
     sleep "$delay"
     n=$((n + 1))
   done
+}
+
+ask() {
+  local prompt="$1" var="$2"
+  read -r -p "$prompt" "$var" <"$tty"
+}
+
+ask_secret() {
+  local prompt="$1" var="$2"
+  read -r -s -p "$prompt" "$var" <"$tty"
+  printf '\n' >"$tty"
 }
 
 write_target_files() {
@@ -144,7 +156,7 @@ pick_disk() {
     printf '  %s) %s %s %s\n' "$((i + 1))" "$disk" "$size" "$model"
   done
 
-  read -r -p 'Install to disk number: ' choice
+  ask 'Install to disk number: ' choice
   [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#disks[@]} )) || {
     printf 'Invalid disk choice.\n' >&2
     exit 1
@@ -155,13 +167,13 @@ pick_disk() {
 }
 
 prompt_identity() {
-  read -r -p 'Hostname: ' hostname
-  read -r -p 'Username: ' username
+  ask 'Hostname: ' hostname
+  ask 'Username: ' username
   validate_name hostname "$hostname" '^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$'
   validate_name username "$username" '^[a-z_][a-z0-9_-]{0,31}$'
 
-  read -r -s -p 'Password for disk, user, and root: ' install_password; printf '\n'
-  read -r -s -p 'Confirm password: ' install_password_confirm; printf '\n'
+  ask_secret 'Password for disk, user, and root: ' install_password
+  ask_secret 'Confirm password: ' install_password_confirm
   [[ -n "$install_password" && "$install_password" == "$install_password_confirm" ]] || {
     printf 'Passwords are empty or do not match.\n' >&2
     exit 1
