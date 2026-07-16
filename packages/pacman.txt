@@ -54,6 +54,11 @@ bash-completion
 bluetui
 btop
 curl
+docker
+docker-buildx
+docker-compose
+eza
+helix
 impala
 jq
 lazydocker
@@ -66,3 +71,4 @@ ripgrep
 tmux
 unzip
 wiremix
+zoxide

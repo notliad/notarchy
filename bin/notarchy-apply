@@ -4,6 +4,8 @@ set -euo pipefail
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 config_root="${NOTARCHY_CONFIG_ROOT:-$repo_root/config}"
 target_root="${NOTARCHY_TARGET_CONFIG_ROOT:-${XDG_CONFIG_HOME:-$HOME/.config}}"
+home_root="${NOTARCHY_HOME_ROOT:-$repo_root/home}"
+target_home="${NOTARCHY_TARGET_HOME:-$HOME}"
 timestamp="${NOTARCHY_BACKUP_TIMESTAMP:-$(date +%s)}"
 
 usage() {
@@ -31,25 +33,33 @@ run() {
   fi
 }
 
+link_tree() {
+  local source_root="$1" target_base="$2"
+  [[ -d "$source_root" ]] || return 0
+
+  find "$source_root" -type f -print0 | while IFS= read -r -d '' source; do
+    rel="${source#"$source_root"/}"
+    target="$target_base/$rel"
+    link_target="$source"
+
+    run mkdir -p "$(dirname -- "$target")"
+
+    if [[ -L "$target" ]]; then
+      current="$(readlink -- "$target")"
+      [[ "$current" == "$link_target" ]] && continue
+      run mv -- "$target" "$target.bak.$timestamp"
+    elif [[ -e "$target" ]]; then
+      run mv -- "$target" "$target.bak.$timestamp"
+    fi
+
+    run ln -s -- "$link_target" "$target"
+  done
+}
+
 [[ -d "$config_root" ]] || {
   printf 'notarchy-apply: config directory not found: %s\n' "$config_root" >&2
   exit 1
 }
 
-find "$config_root" -type f -print0 | while IFS= read -r -d '' source; do
-  rel="${source#"$config_root"/}"
-  target="$target_root/$rel"
-  link_target="$source"
-
-  run mkdir -p "$(dirname -- "$target")"
-
-  if [[ -L "$target" ]]; then
-    current="$(readlink -- "$target")"
-    [[ "$current" == "$link_target" ]] && continue
-    run mv -- "$target" "$target.bak.$timestamp"
-  elif [[ -e "$target" ]]; then
-    run mv -- "$target" "$target.bak.$timestamp"
-  fi
-
-  run ln -s -- "$link_target" "$target"
-done
+link_tree "$config_root" "$target_root"
+link_tree "$home_root" "$target_home"

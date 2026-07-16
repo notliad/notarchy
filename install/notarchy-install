@@ -356,6 +356,7 @@ main() {
   run_step "Generating locales" arch-chroot /mnt locale-gen
 
   run arch-chroot /mnt useradd -m -G wheel -s /bin/bash "$username"
+  run arch-chroot /mnt usermod -aG docker "$username"
   run sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /mnt/etc/sudoers
 
   if "$dry_run"; then
@@ -368,7 +369,7 @@ main() {
   run_step "Building initramfs" arch-chroot /mnt mkinitcpio -P
   run_step "Installing bootloader" arch-chroot /mnt bootctl install
   write_target_files "$uuid"
-  run arch-chroot /mnt systemctl enable NetworkManager bluetooth greetd power-profiles-daemon
+  run arch-chroot /mnt systemctl enable NetworkManager bluetooth docker.socket greetd power-profiles-daemon
 
   if ! "$dry_run"; then
     ui_info "Installing yay"
