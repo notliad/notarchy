@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+wallpaper_dir="${NOTARCHY_WALLPAPER_DIR:-$repo_root/assets/wallpapers}"
+state_dir="${XDG_CONFIG_HOME:-$HOME/.config}/notarchy"
+current_link="$state_dir/background"
+action="${1:-next}"
+
+set_wallpaper() {
+  local wallpaper="$1"
+  mkdir -p "$state_dir"
+  ln -nsf "$wallpaper" "$current_link"
+  pkill -x swaybg >/dev/null 2>&1 || true
+  setsid uwsm-app -- swaybg -i "$current_link" -m fill >/dev/null 2>&1 &
+}
+
+mapfile -d '' -t wallpapers < <(find -L "$wallpaper_dir" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) -print0 2>/dev/null | sort -z)
+((${#wallpapers[@]} > 0)) || {
+  notify-send "NotArchy wallpaper" "No wallpapers found in $wallpaper_dir" 2>/dev/null || true
+  exit 1
+}
+
+case "$action" in
+  current)
+    current="$([[ -L "$current_link" ]] && readlink "$current_link" || true)"
+    [[ -f "$current" ]] && set_wallpaper "$current" || set_wallpaper "${wallpapers[0]}"
+    ;;
+  next)
+    current="$([[ -L "$current_link" ]] && readlink "$current_link" || true)"
+    next="${wallpapers[0]}"
+    for i in "${!wallpapers[@]}"; do
+      if [[ "${wallpapers[$i]}" == "$current" ]]; then
+        next="${wallpapers[$(((i + 1) % ${#wallpapers[@]}))]}"
+        break
+      fi
+    done
+    set_wallpaper "$next"
+    ;;
+  set)
+    [[ -f "${2:-}" ]] || { printf 'Usage: %s set <image>\n' "${0##*/}" >&2; exit 2; }
+    set_wallpaper "$(realpath "$2")"
+    ;;
+  *)
+    printf 'Usage: %s [current|next|set <image>]\n' "${0##*/}" >&2
+    exit 2
+    ;;
+esac

@@ -12,10 +12,12 @@ efibootmgr
 git
 go
 sudo
+gum
 networkmanager
 bluez
 bluez-utils
 power-profiles-daemon
+plymouth
 
 # Desktop
 hyprland
@@ -42,6 +44,7 @@ brightnessctl
 wl-clipboard
 grim
 slurp
+swaybg
 uwsm
 ttf-jetbrains-mono-nerd
 noto-fonts
@@ -52,6 +55,11 @@ bash-completion
 bluetui
 btop
 curl
+docker
+docker-buildx
+docker-compose
+eza
+helix
 impala
 jq
 lazydocker
@@ -64,3 +72,4 @@ ripgrep
 tmux
 unzip
 wiremix
+zoxide
