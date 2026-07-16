@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if command -v pacman >/dev/null 2>&1; then
+  sudo pacman -Syu --needed
+fi
+
+if command -v yay >/dev/null 2>&1; then
+  yay -Syu --needed
+fi
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+if git -C "$repo_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  git -C "$repo_root" pull --ff-only
+fi
+
+printf 'Notarchy configs were not reapplied. Run notarchy-apply manually when wanted.\n'
+

@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+config_root="${NOTARCHY_CONFIG_ROOT:-$repo_root/config}"
+target_root="${NOTARCHY_TARGET_CONFIG_ROOT:-${XDG_CONFIG_HOME:-$HOME/.config}}"
+timestamp="${NOTARCHY_BACKUP_TIMESTAMP:-$(date +%s)}"
+
+usage() {
+  printf 'Usage: %s [--dry-run]\n' "${0##*/}"
+}
+
+dry_run=false
+case "${1:-}" in
+  --dry-run) dry_run=true ;;
+  -h|--help) usage; exit 0 ;;
+  "") ;;
+  *) usage >&2; exit 2 ;;
+esac
+
+run() {
+  if "$dry_run"; then
+    printf '+ %q' "$1"
+    shift
+    for arg in "$@"; do
+      printf ' %q' "$arg"
+    done
+    printf '\n'
+  else
+    "$@"
+  fi
+}
+
+[[ -d "$config_root" ]] || {
+  printf 'notarchy-apply: config directory not found: %s\n' "$config_root" >&2
+  exit 1
+}
+
+find "$config_root" -type f -print0 | while IFS= read -r -d '' source; do
+  rel="${source#"$config_root"/}"
+  target="$target_root/$rel"
+  link_target="$source"
+
+  run mkdir -p "$(dirname -- "$target")"
+
+  if [[ -L "$target" ]]; then
+    current="$(readlink -- "$target")"
+    [[ "$current" == "$link_target" ]] && continue
+    run mv -- "$target" "$target.bak.$timestamp"
+  elif [[ -e "$target" ]]; then
+    run mv -- "$target" "$target.bak.$timestamp"
+  fi
+
+  run ln -s -- "$link_target" "$target"
+done

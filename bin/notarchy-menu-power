@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+current="$(powerprofilesctl get 2>/dev/null || true)"
+profile="$(
+  powerprofilesctl list |
+    awk '/^[[:space:]*-]*[a-zA-Z0-9-]+:$/ { gsub(/^[*[:space:]-]+|:$/, ""); print }' |
+    walker --dmenu -p "Power Profile..." 2>/dev/null
+)"
+
+[[ -n "$profile" ]] || exit 0
+[[ "$profile" == "$current" ]] && exit 0
+
+powerprofilesctl set "$profile"
+notify-send "Power profile" "$profile"
+

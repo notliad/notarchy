@@ -1,0 +1,294 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+dry_run=false
+target_disk=""
+
+usage() {
+  cat <<USAGE
+Usage: ${0##*/} [--dry-run] [--disk /dev/XXX]
+
+Destructive whole-disk Arch installer for Notarchy V1.
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run) dry_run=true; shift ;;
+    --disk) target_disk="${2:-}"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; exit 2 ;;
+  esac
+done
+
+run() {
+  if "$dry_run"; then
+    printf '+ %q' "$1"
+    shift
+    for arg in "$@"; do
+      printf ' %q' "$arg"
+    done
+    printf '\n'
+  else
+    "$@"
+  fi
+}
+
+retry() {
+  local attempts=5 delay=10 n=1
+  until "$@"; do
+    if (( n >= attempts )); then
+      return 1
+    fi
+    printf 'Command failed; retrying in %ss (%s/%s): %s\n' "$delay" "$n" "$attempts" "$*" >&2
+    sleep "$delay"
+    n=$((n + 1))
+  done
+}
+
+write_target_files() {
+  local uuid="$1"
+
+  if "$dry_run"; then
+    printf '+ write target config files under /mnt\n'
+    return
+  fi
+
+  genfstab -U /mnt >> /mnt/etc/fstab
+  printf '%s\n%s\n' 'en_US.UTF-8 UTF-8' 'pt_BR.UTF-8 UTF-8' > /mnt/etc/locale.gen
+  printf 'LANG=en_US.UTF-8\n' > /mnt/etc/locale.conf
+  printf '%s\n' "$hostname" > /mnt/etc/hostname
+  printf '127.0.0.1 localhost\n::1 localhost\n127.0.1.1 %s.localdomain %s\n' "$hostname" "$hostname" > /mnt/etc/hosts
+  printf 'root:%s\n' "$install_password" | arch-chroot /mnt chpasswd
+  printf '%s:%s\n' "$username" "$install_password" | arch-chroot /mnt chpasswd
+
+  cat > /mnt/boot/loader/loader.conf <<BOOT
+default notarchy.conf
+timeout 3
+editor no
+BOOT
+  cat > /mnt/boot/loader/entries/notarchy.conf <<BOOT
+title Notarchy
+linux /vmlinuz-linux
+initrd /intel-ucode.img
+initrd /amd-ucode.img
+initrd /initramfs-linux.img
+options rd.luks.name=$uuid=cryptroot root=/dev/mapper/cryptroot rootflags=subvol=@ rw
+BOOT
+
+  cat > /mnt/etc/greetd/config.toml <<GREETD
+[terminal]
+vt = 1
+
+[default_session]
+command = "tuigreet --cmd 'uwsm start hyprland.desktop'"
+user = "greeter"
+GREETD
+}
+
+require_root() {
+  [[ $EUID -eq 0 ]] || {
+    printf 'Run from the Arch ISO as root.\n' >&2
+    exit 1
+  }
+}
+
+require_uefi() {
+  [[ -d /sys/firmware/efi/efivars ]] || {
+    printf 'Notarchy V1 is UEFI-only.\n' >&2
+    exit 1
+  }
+}
+
+require_network() {
+  ping -c 1 -W 3 archlinux.org >/dev/null 2>&1 || {
+    printf 'Network check failed. Connect to the internet first.\n' >&2
+    exit 1
+  }
+}
+
+validate_name() {
+  local label="$1" value="$2" pattern="$3"
+  [[ "$value" =~ $pattern ]] || {
+    printf 'Invalid %s: %s\n' "$label" "$value" >&2
+    exit 1
+  }
+}
+
+part_suffix() {
+  [[ "$1" =~ [0-9]$ ]] && printf 'p' || true
+}
+
+pick_disk() {
+  local disks=() choice i disk model size
+  mapfile -t disks < <(lsblk -dn -e 7,11 -o PATH,MODEL,SIZE | grep -v '^/dev/zram')
+
+  if [[ -n "$target_disk" ]]; then
+    "$dry_run" || [[ -b "$target_disk" ]] || {
+      printf 'Not a block device: %s\n' "$target_disk" >&2
+      exit 1
+    }
+    printf 'Selected disk: %s\n' "$target_disk"
+    return
+  fi
+
+  ((${#disks[@]} > 0)) || {
+    printf 'No installable disks found.\n' >&2
+    exit 1
+  }
+
+  printf 'Disks:\n'
+  for i in "${!disks[@]}"; do
+    read -r disk model size <<<"${disks[$i]}"
+    printf '  %s) %s %s %s\n' "$((i + 1))" "$disk" "$size" "$model"
+  done
+
+  read -r -p 'Install to disk number: ' choice
+  [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#disks[@]} )) || {
+    printf 'Invalid disk choice.\n' >&2
+    exit 1
+  }
+
+  read -r target_disk _ <<<"${disks[$((choice - 1))]}"
+  printf 'Selected disk: %s. This disk will be erased.\n' "$target_disk"
+}
+
+prompt_identity() {
+  read -r -p 'Hostname: ' hostname
+  read -r -p 'Username: ' username
+  validate_name hostname "$hostname" '^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$'
+  validate_name username "$username" '^[a-z_][a-z0-9_-]{0,31}$'
+
+  read -r -s -p 'Password for disk, user, and root: ' install_password; printf '\n'
+  read -r -s -p 'Confirm password: ' install_password_confirm; printf '\n'
+  [[ -n "$install_password" && "$install_password" == "$install_password_confirm" ]] || {
+    printf 'Passwords are empty or do not match.\n' >&2
+    exit 1
+  }
+}
+
+format_and_open_luks() {
+  local root_part="$1"
+
+  if "$dry_run"; then
+    printf '+ cryptsetup luksFormat --batch-mode --type luks2 --key-file - %q\n' "$root_part"
+    printf '+ cryptsetup open --key-file - %q cryptroot\n' "$root_part"
+    return
+  fi
+
+  printf '%s' "$install_password" | cryptsetup luksFormat --batch-mode --type luks2 --key-file - "$root_part"
+  printf '%s' "$install_password" | cryptsetup open --key-file - "$root_part" cryptroot
+  unset install_password_confirm
+}
+
+install_yay() {
+  arch-chroot /mnt rm -rf "/home/$username/.cache/yay-build"
+  retry arch-chroot /mnt sudo -u "$username" bash -lc '
+    set -euo pipefail
+    mkdir -p ~/.cache
+    cd ~/.cache
+    rm -rf yay yay-build
+    git clone https://aur.archlinux.org/yay.git
+    mv yay yay-build
+    cd yay-build
+    makepkg --noconfirm
+  '
+  arch-chroot /mnt bash -lc "
+    set -euo pipefail
+    pkg=\"\$(find /home/$username/.cache/yay-build -maxdepth 1 -type f -name 'yay-*.pkg.tar.*' ! -name '*-debug-*' | head -n 1)\"
+    [[ -n \"\$pkg\" ]]
+    pacman -U --noconfirm \"\$pkg\"
+  "
+}
+
+install_aur_packages() {
+  local aur_packages=()
+  mapfile -t aur_packages < <(grep -Ev '^\s*(#|$)' "$repo_root/packages/aur.txt")
+  ((${#aur_packages[@]} == 0)) && return
+
+  printf '\nInstalling AUR/proprietary packages: %s\n' "${aur_packages[*]}"
+  printf 'These include third-party license terms. Continuing by V1 policy.\n'
+  retry arch-chroot /mnt sudo -u "$username" yay -S --needed --noconfirm "${aur_packages[@]}"
+}
+
+install_dotfiles() {
+  run mkdir -p "/mnt/home/$username/.local/share"
+  run cp -a "$repo_root" "/mnt/home/$username/.local/share/notarchy"
+  run arch-chroot /mnt chown -R "$username:$username" "/home/$username/.local/share/notarchy"
+  for bin in "$repo_root"/bin/notarchy-*; do
+    run arch-chroot /mnt ln -sf "/home/$username/.local/share/notarchy/bin/${bin##*/}" "/usr/local/bin/${bin##*/}"
+  done
+  run arch-chroot /mnt sudo -u "$username" /home/"$username"/.local/share/notarchy/bin/notarchy-apply
+}
+
+main() {
+  if ! "$dry_run"; then
+    require_root
+    require_uefi
+    require_network
+    timedatectl set-ntp true || true
+  fi
+
+  pick_disk
+  prompt_identity
+
+  local suffix efi_part root_part uuid official_packages
+  suffix="$(part_suffix "$target_disk")"
+  efi_part="${target_disk}${suffix}1"
+  root_part="${target_disk}${suffix}2"
+
+  run wipefs -af "$target_disk"
+  run sgdisk --zap-all "$target_disk"
+  run sgdisk -n 1:0:+1G -t 1:ef00 -c 1:EFI "$target_disk"
+  run sgdisk -n 2:0:0 -t 2:8309 -c 2:cryptroot "$target_disk"
+  run partprobe "$target_disk"
+
+  run mkfs.fat -F32 "$efi_part"
+  format_and_open_luks "$root_part"
+  run mkfs.btrfs -f /dev/mapper/cryptroot
+  run mount /dev/mapper/cryptroot /mnt
+  run btrfs subvolume create /mnt/@
+  run btrfs subvolume create /mnt/@home
+  run umount /mnt
+  run mount -o noatime,compress=zstd,subvol=@ /dev/mapper/cryptroot /mnt
+  run mkdir -p /mnt/home /mnt/boot
+  run mount -o noatime,compress=zstd,subvol=@home /dev/mapper/cryptroot /mnt/home
+  run mount "$efi_part" /mnt/boot
+
+  mapfile -t official_packages < <(grep -Ev '^\s*(#|$)' "$repo_root/packages/pacman.txt")
+  run pacstrap -K /mnt "${official_packages[@]}"
+
+  run arch-chroot /mnt ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+  run arch-chroot /mnt hwclock --systohc
+  if "$dry_run"; then
+    printf '+ write /mnt/etc/locale.gen\n'
+  else
+    printf '%s\n%s\n' 'en_US.UTF-8 UTF-8' 'pt_BR.UTF-8 UTF-8' > /mnt/etc/locale.gen
+  fi
+  run arch-chroot /mnt locale-gen
+
+  run arch-chroot /mnt useradd -m -G wheel -s /bin/bash "$username"
+  run sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /mnt/etc/sudoers
+
+  if "$dry_run"; then
+    uuid="DRY-RUN-LUKS-UUID"
+  else
+    uuid="$(blkid -s UUID -o value "$root_part")"
+  fi
+  run sed -i 's/^HOOKS=.*/HOOKS=(base systemd autodetect microcode modconf kms keyboard sd-vconsole block sd-encrypt filesystems fsck)/' /mnt/etc/mkinitcpio.conf
+  run arch-chroot /mnt mkinitcpio -P
+  run arch-chroot /mnt bootctl install
+  write_target_files "$uuid"
+  run arch-chroot /mnt systemctl enable NetworkManager bluetooth greetd power-profiles-daemon
+
+  if ! "$dry_run"; then
+    install_yay
+    install_aur_packages
+  fi
+  install_dotfiles
+
+  printf '\nNotarchy install complete. Reboot when ready.\n'
+}
+
+main "$@"
