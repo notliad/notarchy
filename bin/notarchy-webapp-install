@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+read -r -p "Name: " name
+read -r -p "URL: " url
+[[ -n "$name" && -n "$url" ]] || exit 2
+
+slug="$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' '-' | sed 's/^-//; s/-$//')"
+app_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+mkdir -p "$app_dir"
+
+cat > "$app_dir/notarchy-webapp-$slug.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=$name
+Exec=google-chrome-stable --app="$url" --profile-directory=Default
+Terminal=false
+Categories=Network;
+DESKTOP
+
+update-desktop-database "$app_dir" >/dev/null 2>&1 || true
+printf 'Installed web app: %s\n' "$name"

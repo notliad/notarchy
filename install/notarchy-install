@@ -308,6 +308,9 @@ install_dotfiles() {
   run mkdir -p "/mnt/home/$username/.local/share/notarchy"
   run rsync -a --delete --exclude .git --exclude .notarchy "$repo_root/" "/mnt/home/$username/.local/share/notarchy/"
   run arch-chroot /mnt chown -R "$username:$username" "/home/$username/.local/share/notarchy"
+  run mkdir -p "/mnt/home/$username/Pictures/wallpapers"
+  run rsync -a --delete "$repo_root/assets/wallpapers/" "/mnt/home/$username/Pictures/wallpapers/"
+  run arch-chroot /mnt chown -R "$username:$username" "/home/$username/Pictures"
   for bin in "$repo_root"/bin/notarchy-*; do
     run arch-chroot /mnt ln -sf "/home/$username/.local/share/notarchy/bin/${bin##*/}" "/usr/local/bin/${bin##*/}"
   done

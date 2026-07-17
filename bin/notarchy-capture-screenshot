@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+[[ -f ~/.config/user-dirs.dirs ]] && source ~/.config/user-dirs.dirs
+output_dir="${NOTARCHY_SCREENSHOT_DIR:-${XDG_PICTURES_DIR:-$HOME/Pictures}}"
+mkdir -p "$output_dir"
+
+pkill slurp >/dev/null 2>&1 && exit 0
+
+jq_monitor_geo='
+  def format_geo:
+    .x as $x | .y as $y |
+    (.width / .scale | floor) as $w |
+    (.height / .scale | floor) as $h |
+    .transform as $t |
+    if $t == 1 or $t == 3 then "\($x),\($y) \($h)x\($w)" else "\($x),\($y) \($w)x\($h)" end;
+'
+
+rectangles() {
+  local ws
+  ws="$(hyprctl monitors -j | jq -r '.[] | select(.focused == true) | .activeWorkspace.id')"
+  hyprctl monitors -j | jq -r --arg ws "$ws" "$jq_monitor_geo .[] | select(.activeWorkspace.id == (\$ws | tonumber)) | format_geo"
+  hyprctl clients -j | jq -r --arg ws "$ws" '.[] | select(.workspace.id == ($ws | tonumber)) | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"'
+}
+
+cleanup() {
+  [[ -n ${freeze_pid:-} ]] && kill "$freeze_pid" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+hyprpicker -r -z >/dev/null 2>&1 &
+freeze_pid=$!
+sleep .1
+selection="$(rectangles | slurp 2>/dev/null || true)"
+[[ -n "$selection" ]] || exit 0
+
+file="$output_dir/screenshot-$(date +'%Y-%m-%d_%H-%M-%S').png"
+grim -g "$selection" "$file"
+wl-copy <"$file"
+
+(
+  action="$(notify-send "Screenshot saved" "Copied to clipboard" -t 10000 -i "$file" -A "default=edit")"
+  [[ "$action" == "default" ]] && satty --filename "$file" --output-filename "$file" --actions-on-enter save-to-clipboard --save-after-copy --copy-command wl-copy
+) >/dev/null 2>&1 &
+
+printf '%s\n' "$file"

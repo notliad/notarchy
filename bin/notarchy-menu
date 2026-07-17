@@ -1,0 +1,321 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+back_to_exit=false
+
+menu() {
+  local prompt="$1" options="$2"
+  printf '%b\n' "$options" | notarchy-launch-walker --dmenu --width 295 --minheight 1 --maxheight 630 -p "$prompt..." 2>/dev/null
+}
+
+terminal() {
+  local title="$1" command="$2"
+  NOTARCHY_MENU_TITLE="$title" NOTARCHY_MENU_COMMAND="$command" \
+    ghostty --class=org.notarchy.menu --title="NotArchy $title" -e bash -lc '
+      printf "\033[1;32mNotArchy %s\033[0m\n\n" "$NOTARCHY_MENU_TITLE"
+      eval "$NOTARCHY_MENU_COMMAND"
+      printf "\nPress enter to close..."
+      read -r _
+    '
+}
+
+pkg_install() {
+  terminal Install "sudo pacman -S --needed $*"
+}
+
+aur_install() {
+  terminal Install "yay -S --needed $*"
+}
+
+pkg_remove() {
+  terminal Remove "pkgs=(); for pkg in $*; do pacman -Qq \"\$pkg\" >/dev/null 2>&1 && pkgs+=(\"\$pkg\"); done; ((\${#pkgs[@]} == 0)) || sudo pacman -Rns \"\${pkgs[@]}\""
+}
+
+back_to() {
+  "$back_to_exit" && exit 0
+  "${1:-show_main_menu}"
+}
+
+show_install_menu() {
+  case "$(menu "Install" "󰣇  Package\n󰣇  AUR\n  Web App\n  TUI\n  Service\n  Style\n󰵮  Development\n  Editor\n  Terminal\n  Browser\n󱚤  AI\n  Gaming\n󰍲  Windows")" in
+    *Package*) terminal Install notarchy-pkg-install ;;
+    *AUR*) terminal Install notarchy-pkg-aur-install ;;
+    *Web*) terminal Install notarchy-webapp-install ;;
+    *TUI*) terminal Install notarchy-tui-install ;;
+    *Service*) show_install_service_menu ;;
+    *Style*) show_install_style_menu ;;
+    *Development*) show_install_development_menu ;;
+    *Editor*) show_install_editor_menu ;;
+    *Terminal*) show_install_terminal_menu ;;
+    *Browser*) show_install_browser_menu ;;
+    *Gaming*) show_install_gaming_menu ;;
+    *AI*) show_install_ai_menu ;;
+    *Windows*) terminal Install "sudo pacman -S --needed docker docker-compose freerdp && mkdir -p ~/Windows && printf 'Windows VM base packages installed. VM automation is intentionally not vendored from Omarchy.\n'" ;;
+    *) back_to show_main_menu ;;
+  esac
+}
+
+show_install_browser_menu() {
+  case "$(menu "Install" "  Chrome\n  Edge\n  Brave\n  Brave Origin\n  Firefox\n󰖟  Zen")" in
+    *Chrome*) aur_install google-chrome ;;
+    *Edge*) aur_install microsoft-edge-stable-bin ;;
+    *"Brave Origin"*) aur_install brave-origin-beta-bin ;;
+    *Brave*) aur_install brave-bin ;;
+    *Firefox*) pkg_install firefox ;;
+    *Zen*) aur_install zen-browser-bin ;;
+    *) show_install_menu ;;
+  esac
+}
+
+show_install_service_menu() {
+  case "$(menu "Install" "  Dropbox\n  Tailscale\n󱇱  NordVPN [AUR]\n󰏖  ONCE\n󰟵  Bitwarden\n  Chromium Account")" in
+    *Dropbox*) aur_install dropbox ;;
+    *Tailscale*) pkg_install tailscale ;;
+    *NordVPN*) aur_install nordvpn-bin ;;
+    *ONCE*) aur_install once ;;
+    *Bitwarden*) pkg_install bitwarden bitwarden-cli ;;
+    *Chromium*) terminal Install "mkdir -p ~/.config/chromium && printf 'Chromium account setup placeholder created at ~/.config/chromium\n'" ;;
+    *) show_install_menu ;;
+  esac
+}
+
+show_install_editor_menu() {
+  case "$(menu "Install" "  VSCode\n  Cursor\n  Zed\n  Sublime Text\n  Helix\n  Vim\n  Emacs")" in
+    *VSCode*) aur_install visual-studio-code-bin ;;
+    *Cursor*) aur_install cursor-bin ;;
+    *Zed*) pkg_install zed ;;
+    *Sublime*) aur_install sublime-text-4 ;;
+    *Helix*) pkg_install helix ;;
+    *Vim*) pkg_install vim ;;
+    *Emacs*) pkg_install emacs-wayland ;;
+    *) show_install_menu ;;
+  esac
+}
+
+show_install_terminal_menu() {
+  case "$(menu "Install" "  Alacritty\n  Foot\n  Ghostty\n  Kitty")" in
+    *Alacritty*) pkg_install alacritty ;;
+    *Foot*) pkg_install foot ;;
+    *Ghostty*) pkg_install ghostty ;;
+    *Kitty*) pkg_install kitty ;;
+    *) show_install_menu ;;
+  esac
+}
+
+show_install_ai_menu() {
+  case "$(menu "Install" "  Dictation\n󱚤  LM Studio\n󱚤  Ollama\n󱚤  Crush")" in
+    *Dictation*) aur_install voxtype ;;
+    *Studio*) aur_install lmstudio-bin ;;
+    *Ollama*) pkg_install ollama ;;
+    *Crush*) aur_install crush-bin ;;
+    *) show_install_menu ;;
+  esac
+}
+
+show_install_gaming_menu() {
+  case "$(menu "Install" "  Steam\n  RetroArch\n󰍳  Minecraft\n󰢹  NVIDIA GeForce NOW\n  Xbox Cloud Gaming\n󰂯  Xbox Controller\n󰍹  Moonlight (GameStream)\n  Lutris (Battle.net)\n󱓟  Heroic (Epic Games)")" in
+    *Steam*) pkg_install steam ;;
+    *RetroArch*) pkg_install retroarch ;;
+    *Minecraft*) aur_install minecraft-launcher ;;
+    *GeForce*) terminal Install "notarchy-webapp-install <<< \$'GeForce NOW\nhttps://play.geforcenow.com/'" ;;
+    *"Xbox Cloud"*) terminal Install "notarchy-webapp-install <<< \$'Xbox Cloud Gaming\nhttps://www.xbox.com/play'" ;;
+    *Xbox*) terminal Install "sudo pacman -S --needed linux-headers && yay -S --needed xpadneo-dkms" ;;
+    *Moonlight*) pkg_install moonlight-qt ;;
+    *Lutris*) pkg_install lutris ;;
+    *Heroic*) aur_install heroic-games-launcher-bin ;;
+    *) show_install_menu ;;
+  esac
+}
+
+show_install_style_menu() {
+  case "$(menu "Install" "󰸌  Theme\n  Background\n  Font")" in
+    *Theme*) terminal Install 'read -rp "Theme directory: " src; [[ -d "$src" ]] && mkdir -p ~/.config/notarchy/themes && cp -a "$src" ~/.config/notarchy/themes/' ;;
+    *Background*) terminal Install 'read -rp "Image path: " src; [[ -f "$src" ]] && mkdir -p ~/Pictures/wallpapers && cp -a "$src" ~/Pictures/wallpapers/ && notarchy-wallpaper set ~/Pictures/wallpapers/"$(basename "$src")"' ;;
+    *Font*) show_install_font_menu ;;
+    *) show_install_menu ;;
+  esac
+}
+
+show_install_font_menu() {
+  case "$(menu "Install" "  Cascadia Mono\n  Meslo LG Mono\n  Fira Code\n  Victor Code\n  Bitstream Vera Mono\n  Iosevka" )" in
+    *Cascadia*) pkg_install ttf-cascadia-mono-nerd ;;
+    *Meslo*) pkg_install ttf-meslo-nerd ;;
+    *Fira*) pkg_install ttf-firacode-nerd ;;
+    *Victor*) pkg_install ttf-victor-mono-nerd ;;
+    *Bitstream*) pkg_install ttf-bitstream-vera-mono-nerd ;;
+    *Iosevka*) pkg_install ttf-iosevka-nerd ;;
+    *) show_install_style_menu ;;
+  esac
+}
+
+show_install_development_menu() {
+  case "$(menu "Install" "󰫏  Ruby on Rails\n  Docker DB\n  JavaScript\n  Go\n  PHP\n  Python\n  Elixir\n  Zig\n  Rust\n  Java\n  .NET\n  OCaml\n  Clojure\n  Scala")" in
+    *Rails*) pkg_install ruby base-devel ;;
+    *Docker*) pkg_install postgresql redis mariadb ;;
+    *JavaScript*) show_install_javascript_menu ;;
+    *Go*) pkg_install go ;;
+    *PHP*) show_install_php_menu ;;
+    *Python*) pkg_install python python-pip ;;
+    *Elixir*) show_install_elixir_menu ;;
+    *Zig*) pkg_install zig ;;
+    *Rust*) pkg_install rustup ;;
+    *Java*) pkg_install jdk-openjdk ;;
+    *NET*) pkg_install dotnet-sdk ;;
+    *OCaml*) pkg_install ocaml opam ;;
+    *Clojure*) pkg_install clojure ;;
+    *Scala*) pkg_install scala ;;
+    *) show_install_menu ;;
+  esac
+}
+
+show_install_javascript_menu() {
+  case "$(menu "Install" "  Node.js\n  Bun\n  Deno")" in
+    *Node*) pkg_install nodejs npm ;;
+    *Bun*) pkg_install bun ;;
+    *Deno*) pkg_install deno ;;
+    *) show_install_development_menu ;;
+  esac
+}
+
+show_install_php_menu() {
+  case "$(menu "Install" "  PHP\n  Laravel\n  Symfony")" in
+    *PHP*) pkg_install php composer ;;
+    *Laravel*) pkg_install php composer ;;
+    *Symfony*) pkg_install php composer symfony-cli ;;
+    *) show_install_development_menu ;;
+  esac
+}
+
+show_install_elixir_menu() {
+  case "$(menu "Install" "  Elixir\n  Phoenix")" in
+    *Elixir*) pkg_install elixir ;;
+    *Phoenix*) pkg_install elixir ;;
+    *) show_install_development_menu ;;
+  esac
+}
+
+show_remove_menu() {
+  case "$(menu "Remove" "󰣇  Package\n  Web App\n  TUI\n󰵮  Development\n󰸌  Theme\n  Browser\n  Dictation\n  Gaming\n󰍲  Windows\n󰏓  Preinstalls\n  Security")" in
+    *Package*) terminal Remove notarchy-pkg-remove ;;
+    *Web*) terminal Remove notarchy-webapp-remove ;;
+    *TUI*) terminal Remove notarchy-tui-remove ;;
+    *Development*) show_remove_development_menu ;;
+    *Theme*) terminal Remove 'dir=~/.config/notarchy/themes; [[ -d "$dir" ]] || { echo "No themes found."; exit 0; }; theme="$(find "$dir" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | sort | fzf --prompt "Remove theme> ")"; [[ -n "$theme" ]] && rm -rf "$dir/$theme"' ;;
+    *Browser*) show_remove_browser_menu ;;
+    *Dictation*) pkg_remove voxtype ;;
+    *Gaming*) show_remove_gaming_menu ;;
+    *Windows*) terminal Remove 'rm -rf ~/Windows; sudo pacman -Rns freerdp 2>/dev/null || true' ;;
+    *Preinstalls*) terminal Remove 'sudo pacman -Rns typora obsidian 1password 2>/dev/null || true' ;;
+    *Security*) show_remove_security_menu ;;
+    *) show_main_menu ;;
+  esac
+}
+
+show_remove_security_menu() {
+  case "$(menu "Remove" "󰈷  Fingerprint\n  Fido2")" in
+    *Fingerprint*) pkg_remove fprintd ;;
+    *Fido2*) pkg_remove libfido2 ;;
+    *) show_remove_menu ;;
+  esac
+}
+
+show_remove_browser_menu() {
+  case "$(menu "Remove" "  Chrome\n  Edge\n  Brave\n  Brave Origin\n  Firefox\n  Zen")" in
+    *Chrome*) pkg_remove google-chrome ;;
+    *Edge*) pkg_remove microsoft-edge-stable-bin ;;
+    *"Brave Origin"*) pkg_remove brave-origin-beta-bin ;;
+    *Brave*) pkg_remove brave-bin ;;
+    *Firefox*) pkg_remove firefox ;;
+    *Zen*) pkg_remove zen-browser-bin ;;
+    *) show_remove_menu ;;
+  esac
+}
+
+show_remove_gaming_menu() {
+  case "$(menu "Remove" "  Steam\n  RetroArch\n󰍳  Minecraft\n󰢹  NVIDIA GeForce NOW\n  Xbox Cloud Gaming\n󰖺  Xbox Controller (󰂯)\n󰍹  Moonlight (GameStream)\n  Lutris (Battle.net)\n󱓟  Heroic (Epic Games)")" in
+    *Steam*) pkg_remove steam ;;
+    *RetroArch*) pkg_remove retroarch ;;
+    *Minecraft*) pkg_remove minecraft-launcher ;;
+    *GeForce*) terminal Remove 'find "${XDG_DATA_HOME:-$HOME/.local/share}/applications" -maxdepth 1 -type f -name "notarchy-webapp-*.desktop" -exec grep -l "play.geforcenow.com" {} \; | xargs -r rm -f' ;;
+    *"Xbox Cloud"*) terminal Remove 'find "${XDG_DATA_HOME:-$HOME/.local/share}/applications" -maxdepth 1 -type f -name "notarchy-webapp-*.desktop" -exec grep -l "xbox.com/play" {} \; | xargs -r rm -f' ;;
+    *Xbox*) pkg_remove xpadneo-dkms ;;
+    *Moonlight*) pkg_remove moonlight-qt ;;
+    *Lutris*) pkg_remove lutris ;;
+    *Heroic*) pkg_remove heroic-games-launcher-bin ;;
+    *) show_remove_menu ;;
+  esac
+}
+
+show_remove_development_menu() {
+  case "$(menu "Remove" "󰫏  Ruby on Rails\n  JavaScript\n  Go\n  PHP\n  Python\n  Elixir\n  Zig\n  Rust\n  Java\n  .NET\n  OCaml\n  Clojure\n  Scala")" in
+    *Rails*) pkg_remove ruby ;;
+    *JavaScript*) show_remove_javascript_menu ;;
+    *Go*) pkg_remove go ;;
+    *PHP*) show_remove_php_menu ;;
+    *Python*) pkg_remove python-pip ;;
+    *Elixir*) show_remove_elixir_menu ;;
+    *Zig*) pkg_remove zig ;;
+    *Rust*) pkg_remove rustup ;;
+    *Java*) pkg_remove jdk-openjdk ;;
+    *NET*) pkg_remove dotnet-sdk ;;
+    *OCaml*) pkg_remove ocaml opam ;;
+    *Clojure*) pkg_remove clojure ;;
+    *Scala*) pkg_remove scala ;;
+    *) show_remove_menu ;;
+  esac
+}
+
+show_remove_javascript_menu() {
+  case "$(menu "Remove" "  Node.js\n  Bun\n  Deno")" in
+    *Node*) pkg_remove nodejs npm ;;
+    *Bun*) pkg_remove bun ;;
+    *Deno*) pkg_remove deno ;;
+    *) show_remove_development_menu ;;
+  esac
+}
+
+show_remove_php_menu() {
+  case "$(menu "Remove" "  PHP\n  Laravel\n  Symfony")" in
+    *PHP*) pkg_remove php composer ;;
+    *Laravel*) pkg_remove php composer ;;
+    *Symfony*) pkg_remove php composer symfony-cli ;;
+    *) show_remove_development_menu ;;
+  esac
+}
+
+show_remove_elixir_menu() {
+  case "$(menu "Remove" "  Elixir\n  Phoenix")" in
+    *Elixir*) pkg_remove elixir ;;
+    *Phoenix*) pkg_remove elixir ;;
+    *) show_remove_development_menu ;;
+  esac
+}
+
+show_system_menu() {
+  case "$(menu "System" "  Lock\n󱄄  Screensaver\n󰒲  Suspend\n󰤁  Hibernate\n󰍃  Logout\n󰜉  Restart\n󰐥  Shutdown")" in
+    *Lock*) hyprlock ;;
+    *Screensaver*) terminal System 'printf "Screensaver is not installed in NotArchy yet.\n"' ;;
+    *Suspend*) systemctl suspend ;;
+    *Hibernate*) systemctl hibernate ;;
+    *Logout*) uwsm stop ;;
+    *Restart*) systemctl reboot --no-wall ;;
+    *Shutdown*) systemctl poweroff --no-wall ;;
+    *) back_to show_main_menu ;;
+  esac
+}
+
+show_main_menu() {
+  case "$(menu "Go" "󰉉  Install\n󰭌  Remove\n  System")" in
+    *Install*) show_install_menu ;;
+    *Remove*) show_remove_menu ;;
+    *System*) show_system_menu ;;
+  esac
+}
+
+case "${1:-}" in
+  install) back_to_exit=true; show_install_menu ;;
+  remove) back_to_exit=true; show_remove_menu ;;
+  system|power) back_to_exit=true; show_system_menu ;;
+  "") show_main_menu ;;
+  *) printf 'Usage: %s [install|remove|system]\n' "${0##*/}" >&2; exit 2 ;;
+esac

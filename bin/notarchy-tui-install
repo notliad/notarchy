@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+read -r -p "Name: " name
+read -r -p "Command: " command
+[[ -n "$name" && -n "$command" ]] || exit 2
+
+slug="$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' '-' | sed 's/^-//; s/-$//')"
+app_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+mkdir -p "$app_dir"
+
+cat > "$app_dir/notarchy-tui-$slug.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=$name
+Exec=ghostty --class=org.notarchy.tui.$slug -e bash -lc '$command'
+Terminal=false
+Categories=System;
+DESKTOP
+
+update-desktop-database "$app_dir" >/dev/null 2>&1 || true
+printf 'Installed TUI: %s\n' "$name"

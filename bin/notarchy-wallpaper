@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-wallpaper_dir="${NOTARCHY_WALLPAPER_DIR:-$repo_root/assets/wallpapers}"
+wallpaper_dir="${NOTARCHY_WALLPAPER_DIR:-$HOME/Pictures/wallpapers}"
 state_dir="${XDG_CONFIG_HOME:-$HOME/.config}/notarchy"
 current_link="$state_dir/background"
 action="${1:-next}"

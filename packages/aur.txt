@@ -16,3 +16,4 @@ elephant-websearch
 elephant-todo
 mutui
 liftoff
+localsend-bin

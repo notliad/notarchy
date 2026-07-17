@@ -10,22 +10,16 @@
 </pre>
 </div>
 
-Personal Arch Linux base inspired by Omarchy, without inheriting Omarchy's update
-model. This repository is the source of truth for Notarchy configs.
+Personal Arch Linux setup inspired by Omarchy, but kept independent and small.
+It installs a complete encrypted Hyprland desktop and keeps this repository as
+the source of truth for packages, scripts, and default configs.
 
-## V1 contract
+NotArchy includes Ghostty, Walker, Waybar, Mako, Nautilus, Google Chrome, VS
+Code, LocalSend, Helix, Neovim, Docker tools, screenshot/OCR utilities, and a
+small NotArchy menu for install/remove/system actions.
 
-- Start from the official Arch ISO.
-- Run `install/notarchy-install` from the live environment.
-- Wipe one selected disk chosen from a numbered list.
-- Install UEFI + `systemd-boot` + LUKS + Btrfs.
-- Install a lean Hyprland desktop with Ghostty, Google Chrome stable, VS Code,
-  Waybar, Walker, and `greetd + tuigreet`.
-- Apply configs as symlinks from this repo into `~/.config`.
-- `notarchy-update` updates packages/repo only. It never reapplies configs.
-
-Omarchy is a reference only. Copy useful pieces deliberately; do not vendor it,
-submodule it, or merge from it automatically.
+Omarchy is only a reference. Useful ideas are copied deliberately; NotArchy does
+not vendor Omarchy or follow its update/migration model.
 
 ## Live ISO usage
 
@@ -44,20 +38,20 @@ cd /tmp/notarchy
 ./install/notarchy-install
 ```
 
-Review without executing destructive commands:
+Preview installer commands without touching a disk:
 
 ```sh
 ./install/notarchy-install --dry-run
 ```
 
-Fast local checks:
+Local checks:
 
 ```sh
 scripts/test-dry-run
 scripts/test-vm --reset
 ```
 
-## Installed-system commands
+## Daily Use
 
 ```sh
 notarchy-apply
@@ -66,4 +60,19 @@ notarchy-update
 
 `notarchy-apply` links every file under `config/` to the matching path under
 `$HOME/.config`. Existing real files are moved to `.bak.<timestamp>` first.
-The installer links these commands into `/usr/local/bin`.
+
+`notarchy-update` updates system packages, AUR packages, and pulls this repo. It
+does not reapply configs automatically. Run `notarchy-apply` when you want new
+tracked config changes.
+
+Useful shortcuts:
+
+- `Super + Space`: app launcher
+- `Super + Alt + Space`: NotArchy menu
+- `Super + Esc`: system menu
+- `Print`: screenshot
+- `Super + Print`: OCR selection
+- `Super + Shift + X`: color picker
+- `Super + Ctrl + Space`: next wallpaper
+
+More implementation detail lives in [TECHNICAL_CONTEXT.md](TECHNICAL_CONTEXT.md).

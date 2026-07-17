@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+app_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+mapfile -t apps < <(find "$app_dir" -maxdepth 1 -type f -name 'notarchy-tui-*.desktop' -printf '%f\n' 2>/dev/null | sort)
+((${#apps[@]} > 0)) || { printf 'No NotArchy TUIs found.\n'; exit 0; }
+
+choice="$(printf '%s\n' "${apps[@]}" | fzf --prompt 'Remove TUI> ')"
+[[ -n "$choice" ]] || exit 0
+rm -f "$app_dir/$choice"
+update-desktop-database "$app_dir" >/dev/null 2>&1 || true
+printf 'Removed: %s\n' "$choice"

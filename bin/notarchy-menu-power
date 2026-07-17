@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-choice="$(
-  printf '%s\n' Lock Suspend Logout Reboot Shutdown |
-    walker --dmenu -p "Power..." 2>/dev/null
-)"
-
-case "$choice" in
-  Lock) hyprlock ;;
-  Suspend) systemctl suspend ;;
-  Logout) uwsm stop ;;
-  Reboot) systemctl reboot --no-wall ;;
-  Shutdown) systemctl poweroff --no-wall ;;
-esac
+exec notarchy-menu system
