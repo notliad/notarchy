@@ -17,6 +17,7 @@ required=(
   "+ pacstrap -K /mnt"
   "+ arch-chroot /mnt mkinitcpio -P"
   "+ arch-chroot /mnt bootctl install"
+  "+ cp -f /mnt/boot/EFI/systemd/systemd-bootx64.efi /mnt/boot/EFI/BOOT/BOOTX64.EFI"
   "+ arch-chroot /mnt ln -sf /home/notliad/.local/share/notarchy/bin/notarchy-apply /usr/local/bin/notarchy-apply"
   "+ arch-chroot /mnt sudo -u notliad /home/notliad/.local/share/notarchy/bin/notarchy-apply"
 )

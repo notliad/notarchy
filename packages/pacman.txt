@@ -69,6 +69,7 @@ man-db
 neovim
 playerctl
 ripgrep
+rsync
 tmux
 unzip
 wiremix

@@ -53,8 +53,6 @@ exec qemu-system-x86_64 \
   -drive if=pflash,format=raw,readonly=on,file="$ovmf_code" \
   -drive if=pflash,format=raw,file="$vars" \
   -drive file="$disk",format=qcow2,if=virtio \
-  -cdrom "$arch_iso" \
-  -boot d \
   -virtfs "local,path=$repo_root,mount_tag=notarchy,security_model=mapped-xattr" \
   -netdev user,id=net0 \
   -device virtio-net-pci,netdev=net0 \

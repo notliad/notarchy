@@ -305,7 +305,8 @@ install_aur_packages() {
 install_dotfiles() {
   run mkdir -p "/mnt/home/$username/.local/share"
   run arch-chroot /mnt chown -R "$username:$username" "/home/$username/.local"
-  run cp -a "$repo_root" "/mnt/home/$username/.local/share/notarchy"
+  run mkdir -p "/mnt/home/$username/.local/share/notarchy"
+  run rsync -a --delete --exclude .git --exclude .notarchy "$repo_root/" "/mnt/home/$username/.local/share/notarchy/"
   run arch-chroot /mnt chown -R "$username:$username" "/home/$username/.local/share/notarchy"
   for bin in "$repo_root"/bin/notarchy-*; do
     run arch-chroot /mnt ln -sf "/home/$username/.local/share/notarchy/bin/${bin##*/}" "/usr/local/bin/${bin##*/}"
@@ -381,6 +382,8 @@ main() {
   install_plymouth_theme
   run_step "Building initramfs" arch-chroot /mnt mkinitcpio -P
   run_step "Installing bootloader" arch-chroot /mnt bootctl install
+  run mkdir -p /mnt/boot/EFI/BOOT
+  run cp -f /mnt/boot/EFI/systemd/systemd-bootx64.efi /mnt/boot/EFI/BOOT/BOOTX64.EFI
   write_target_files "$uuid"
   run arch-chroot /mnt systemctl enable NetworkManager bluetooth docker.socket greetd power-profiles-daemon
 
@@ -389,7 +392,6 @@ main() {
     install_yay
     ui_info "Installing AUR packages"
     install_aur_packages
-    run arch-chroot /mnt sudo -u "$username" elephant service enable
   fi
   ui_info "Applying NotArchy configs"
   install_dotfiles

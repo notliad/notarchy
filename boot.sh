@@ -10,7 +10,7 @@ if [[ "${1:-}" == "--branch" ]]; then
   shift 2
 fi
 
-pacman -Sy --needed --noconfirm git gum
+pacman -Sy --needed --noconfirm git gum rsync
 rm -rf "$repo_dir"
 if [[ -n "$repo_branch" ]]; then
   git clone --branch "$repo_branch" "$repo_url" "$repo_dir"
