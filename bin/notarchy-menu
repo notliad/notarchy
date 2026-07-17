@@ -294,7 +294,7 @@ show_remove_elixir_menu() {
 show_system_menu() {
   case "$(menu "System" "  Lock\n󱄄  Screensaver\n󰒲  Suspend\n󰤁  Hibernate\n󰍃  Logout\n󰜉  Restart\n󰐥  Shutdown")" in
     *Lock*) hyprlock ;;
-    *Screensaver*) terminal System 'printf "Screensaver is not installed in NotArchy yet.\n"' ;;
+    *Screensaver*) notarchy-launch-screensaver ;;
     *Suspend*) systemctl suspend ;;
     *Hibernate*) systemctl hibernate ;;
     *Logout*) uwsm stop ;;

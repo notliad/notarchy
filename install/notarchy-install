@@ -10,6 +10,9 @@ install_password=""
 install_password_confirm=""
 assume_yes=false
 tty=/dev/tty
+keyboard_layout="${NOTARCHY_KEYBOARD_LAYOUT:-br}"
+keyboard_variant="${NOTARCHY_KEYBOARD_VARIANT:-abnt2}"
+weather_location="${NOTARCHY_LOCATION:-}"
 
 usage() {
   cat <<USAGE
@@ -179,6 +182,15 @@ validate_name() {
   }
 }
 
+validate_preferences() {
+  validate_name 'keyboard layout' "$keyboard_layout" '^[A-Za-z0-9_,+-]+$'
+  validate_name 'keyboard variant' "$keyboard_variant" '^[A-Za-z0-9_,+-]*$'
+  [[ ! "$weather_location" =~ [[:cntrl:]] ]] || {
+    printf 'Invalid weather location.\n' >&2
+    exit 1
+  }
+}
+
 part_suffix() {
   [[ "$1" =~ [0-9]$ ]] && printf 'p' || true
 }
@@ -240,6 +252,27 @@ prompt_identity() {
   }
 }
 
+prompt_preferences() {
+  local answer
+
+  if ! "$dry_run" && ! "$assume_yes"; then
+    if [[ -z ${NOTARCHY_KEYBOARD_LAYOUT+x} ]]; then
+      ask "Keyboard layout [$keyboard_layout]: " answer
+      [[ -n "$answer" ]] && keyboard_layout="$answer"
+    fi
+    if [[ -z ${NOTARCHY_KEYBOARD_VARIANT+x} ]]; then
+      ask "Keyboard variant [$keyboard_variant]: " answer
+      [[ -n "$answer" ]] && keyboard_variant="$answer"
+    fi
+    if [[ -z ${NOTARCHY_LOCATION+x} ]]; then
+      ask "Weather location [$weather_location]: " answer
+      [[ -n "$answer" ]] && weather_location="$answer"
+    fi
+  fi
+
+  validate_preferences
+}
+
 confirm_install() {
   local summary="Install NotArchy on $target_disk as $username@$hostname. This erases $target_disk."
 
@@ -256,6 +289,29 @@ confirm_install() {
     ask "$summary Type yes to continue: " answer
     [[ "$answer" == "yes" ]] || exit 1
   fi
+}
+
+write_user_preferences() {
+  local config_dir="/mnt/home/$username/.config/notarchy"
+
+  if "$dry_run"; then
+    printf '+ write user preferences under %q\n' "$config_dir"
+    return
+  fi
+
+  install -d -m 0755 "$config_dir"
+  {
+    printf 'NOTARCHY_LOCATION=%q\n' "$weather_location"
+    printf 'NOTARCHY_KEYBOARD_LAYOUT=%q\n' "$keyboard_layout"
+    printf 'NOTARCHY_KEYBOARD_VARIANT=%q\n' "$keyboard_variant"
+  } > "$config_dir/user.env"
+  {
+    printf 'input {\n'
+    printf '  kb_layout = %s\n' "$keyboard_layout"
+    [[ -n "$keyboard_variant" ]] && printf '  kb_variant = %s\n' "$keyboard_variant"
+    printf '}\n'
+  } > "$config_dir/hypr-user.conf"
+  arch-chroot /mnt chown -R "$username:$username" "/home/$username/.config/notarchy"
 }
 
 format_and_open_luks() {
@@ -311,6 +367,7 @@ install_dotfiles() {
   run mkdir -p "/mnt/home/$username/Pictures/wallpapers"
   run rsync -a --delete "$repo_root/assets/wallpapers/" "/mnt/home/$username/Pictures/wallpapers/"
   run arch-chroot /mnt chown -R "$username:$username" "/home/$username/Pictures"
+  write_user_preferences
   for bin in "$repo_root"/bin/notarchy-*; do
     run arch-chroot /mnt ln -sf "/home/$username/.local/share/notarchy/bin/${bin##*/}" "/usr/local/bin/${bin##*/}"
   done
@@ -335,6 +392,7 @@ main() {
 
   pick_disk
   prompt_identity
+  prompt_preferences
   confirm_install
 
   local suffix efi_part root_part uuid official_packages

@@ -17,3 +17,4 @@ elephant-todo
 mutui
 liftoff
 localsend-bin
+python-terminaltexteffects

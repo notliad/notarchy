@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+command -v tte >/dev/null 2>&1 || exit 1
+pgrep -f org.notarchy.screensaver >/dev/null 2>&1 && exit 0
+
+focused="$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name' | head -n1)"
+
+while IFS= read -r monitor; do
+  hyprctl dispatch focusmonitor "$monitor" >/dev/null
+  hyprctl dispatch exec -- ghostty \
+    --class=org.notarchy.screensaver \
+    --config-file="$HOME/.config/ghostty/screensaver" \
+    --font-size=18 \
+    -e notarchy-screensaver
+done < <(hyprctl monitors -j | jq -r '.[].name')
+
+[[ -n "$focused" ]] && hyprctl dispatch focusmonitor "$focused" >/dev/null

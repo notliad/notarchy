@@ -2,6 +2,11 @@
 set -euo pipefail
 
 cd "$(dirname -- "${BASH_SOURCE[0]}")/.."
+
+export NOTARCHY_KEYBOARD_LAYOUT=br
+export NOTARCHY_KEYBOARD_VARIANT=abnt2
+export NOTARCHY_LOCATION=Juazeiro
+
 exec ./install/notarchy-install \
   --disk /dev/vda \
   --hostname notarchy \

@@ -54,6 +54,7 @@ tesseract-data-eng
 swaybg
 uwsm
 ttf-jetbrains-mono-nerd
+ttf-nerd-fonts-symbols
 noto-fonts
 noto-fonts-emoji
 
@@ -75,7 +76,6 @@ lazydocker
 lazygit
 less
 man-db
-neovim
 playerctl
 ripgrep
 rsync

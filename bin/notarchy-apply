@@ -33,6 +33,28 @@ run() {
   fi
 }
 
+ensure_local_preferences() {
+  local local_dir="$target_root/notarchy"
+
+  if "$dry_run"; then
+    printf '+ ensure local preferences under %q\n' "$local_dir"
+    return
+  fi
+
+  mkdir -p "$local_dir"
+  [[ -e "$local_dir/user.env" ]] || {
+    printf 'NOTARCHY_LOCATION=\n'
+    printf 'NOTARCHY_KEYBOARD_LAYOUT=br\n'
+    printf 'NOTARCHY_KEYBOARD_VARIANT=abnt2\n'
+  } > "$local_dir/user.env"
+  [[ -e "$local_dir/hypr-user.conf" ]] || {
+    printf 'input {\n'
+    printf '  kb_layout = br\n'
+    printf '  kb_variant = abnt2\n'
+    printf '}\n'
+  } > "$local_dir/hypr-user.conf"
+}
+
 link_tree() {
   local source_root="$1" target_base="$2"
   [[ -d "$source_root" ]] || return 0
@@ -61,5 +83,6 @@ link_tree() {
   exit 1
 }
 
+ensure_local_preferences
 link_tree "$config_root" "$target_root"
 link_tree "$home_root" "$target_home"
