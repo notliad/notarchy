@@ -10,16 +10,20 @@
 </pre>
 </div>
 
-Personal Arch Linux setup inspired by Omarchy, but kept independent and small.
-It installs a complete encrypted Hyprland desktop and keeps this repository as
-the source of truth for packages, scripts, and default configs.
+NotArchy started after almost a year of using Omarchy. I liked it, then I liked
+customizing it, then I got tired of updates occasionally stepping on my personal
+configs. So this is my own Arch installer: same kind of polished Hyprland setup,
+but with my preferences baked in and a stricter rule that the system can update
+without silently changing my personal setup.
 
-NotArchy includes Ghostty, Walker, Waybar, Mako, Nautilus, Google Chrome, VS
-Code, LocalSend, Helix, Neovim, Docker tools, screenshot/OCR utilities, and a
-small NotArchy menu for install/remove/system actions.
+It installs a complete encrypted Hyprland desktop with Ghostty, Walker, Waybar,
+Mako, Nautilus, Google Chrome, VS Code, LocalSend, Helix, Neovim, Docker tools,
+screenshot/OCR utilities, and a small NotArchy menu for install/remove/system
+actions.
 
-Omarchy is only a reference. Useful ideas are copied deliberately; NotArchy does
-not vendor Omarchy or follow its update/migration model.
+Omarchy is still the reference and inspiration. The nice ideas I like are copied
+shamelessly, but deliberately; NotArchy does not vendor Omarchy or follow its
+update/migration model.
 
 ## Live ISO usage
 
