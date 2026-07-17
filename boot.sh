@@ -11,6 +11,20 @@ if [[ "${1:-}" == "--branch" ]]; then
 fi
 
 pacman -Sy --needed --noconfirm git gum rsync
+
+case "$repo_dir" in
+  /tmp/*) ;;
+  *)
+    printf 'Refusing to delete repo dir outside /tmp: %s\n' "$repo_dir" >&2
+    exit 1
+    ;;
+esac
+
+if mountpoint -q "$repo_dir"; then
+  printf 'Refusing to delete mounted repo dir: %s\n' "$repo_dir" >&2
+  exit 1
+fi
+
 rm -rf "$repo_dir"
 if [[ -n "$repo_branch" ]]; then
   git clone --branch "$repo_branch" "$repo_url" "$repo_dir"

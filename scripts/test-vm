@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 vm_dir="$repo_root/.notarchy/vm"
+share_dir="$vm_dir/share"
 disk="$vm_dir/disk.qcow2"
 vars="$vm_dir/OVMF_VARS.fd"
 ovmf_code="${OVMF_CODE:-/usr/share/edk2/x64/OVMF_CODE.4m.fd}"
@@ -33,6 +34,9 @@ fi
 [[ -f "$ovmf_vars" ]] || { printf 'OVMF vars not found: %s\n' "$ovmf_vars" >&2; exit 1; }
 
 mkdir -p "$vm_dir"
+mkdir -p "$share_dir"
+rsync -a --delete --exclude .git --exclude .notarchy "$repo_root/" "$share_dir/"
+
 if "$reset" || [[ ! -f "$disk" ]]; then
   rm -f "$disk" "$vars"
   qemu-img create -f qcow2 "$disk" 30G >/dev/null
@@ -64,7 +68,7 @@ if ! "$no_iso"; then
 fi
 
 qemu_args+=(
-  -virtfs "local,path=$repo_root,mount_tag=notarchy,security_model=mapped-xattr"
+  -virtfs "local,path=$share_dir,mount_tag=notarchy,security_model=mapped-xattr"
   -netdev user,id=net0
   -device virtio-net-pci,netdev=net0
   -device virtio-vga
