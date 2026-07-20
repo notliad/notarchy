@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+umask 022
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 dry_run=false
@@ -582,14 +583,22 @@ copy_dns_config() {
   }
 }
 
-fix_target_etc_permissions() {
+fix_target_permissions() {
   if "$dry_run"; then
-    printf '+ chmod 0755 /mnt /mnt/etc\n'
+    printf '+ chmod 0755 /mnt /mnt/etc /mnt/var /mnt/var/lib /mnt/var/lib/pacman /mnt/var/lib/pacman/local /mnt/var/lib/pacman/sync\n'
+    printf '+ chmod -R a+rX /mnt/var/lib/pacman\n'
     printf '+ chmod 0644 /mnt/etc/resolv.conf /mnt/etc/hosts /mnt/etc/profile /mnt/etc/gitconfig\n'
     return
   fi
 
-  chmod 0755 /mnt /mnt/etc
+  for dir in /mnt /mnt/etc /mnt/var /mnt/var/lib /mnt/var/lib/pacman /mnt/var/lib/pacman/local /mnt/var/lib/pacman/sync; do
+    if [[ -d "$dir" ]]; then
+      chmod 0755 "$dir"
+    fi
+  done
+  if [[ -d /mnt/var/lib/pacman ]]; then
+    chmod -R a+rX /mnt/var/lib/pacman
+  fi
   for file in /mnt/etc/resolv.conf /mnt/etc/hosts /mnt/etc/profile /mnt/etc/gitconfig; do
     if [[ -e "$file" ]]; then
       chmod 0644 "$file"
@@ -603,12 +612,12 @@ ensure_user_dns() {
     return
   fi
 
-  fix_target_etc_permissions
+  fix_target_permissions
   arch-chroot /mnt sudo -u "$username" env HOME="/home/$username" GIT_CONFIG_NOSYSTEM=1 getent hosts aur.archlinux.org >/dev/null 2>&1 && return
 
   rm -f /mnt/etc/resolv.conf
   printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > /mnt/etc/resolv.conf
-  fix_target_etc_permissions
+  fix_target_permissions
   arch-chroot /mnt sudo -u "$username" env HOME="/home/$username" GIT_CONFIG_NOSYSTEM=1 getent hosts aur.archlinux.org >/dev/null 2>&1 || {
     printf 'Target user cannot resolve aur.archlinux.org. Check DNS/network and retry.\n' >&2
     exit 1
@@ -744,7 +753,7 @@ main() {
   run mkdir -p /mnt/boot/EFI/BOOT
   run cp -f /mnt/boot/EFI/systemd/systemd-bootx64.efi /mnt/boot/EFI/BOOT/BOOTX64.EFI
   write_target_files "$uuid"
-  fix_target_etc_permissions
+  fix_target_permissions
   run arch-chroot /mnt systemctl enable NetworkManager bluetooth greetd power-profiles-daemon
   if [[ " ${official_packages[*]} " == *" docker "* ]]; then
     run arch-chroot /mnt systemctl enable docker.socket
