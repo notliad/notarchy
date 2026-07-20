@@ -13,6 +13,7 @@ git
 go
 sudo
 gum
+zenity
 networkmanager
 bluez
 bluez-utils

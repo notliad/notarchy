@@ -28,6 +28,42 @@ all_modules=(
 
 default_modules="hyprland/workspaces,custom/scratchpad,custom/mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery"
 
+module_label() {
+  case "$1" in
+    hyprland/workspaces) printf 'Workspaces' ;;
+    custom/scratchpad) printf 'Scratchpad' ;;
+    custom/mpris) printf 'Media' ;;
+    clock) printf 'Date' ;;
+    clock#2) printf 'Time' ;;
+    custom/weather) printf 'Weather' ;;
+    cpu) printf 'CPU' ;;
+    memory) printf 'Memory' ;;
+    tray) printf 'Tray' ;;
+    bluetooth) printf 'Bluetooth' ;;
+    network) printf 'Network' ;;
+    pulseaudio) printf 'Audio' ;;
+    battery) printf 'Battery' ;;
+  esac
+}
+
+module_description() {
+  case "$1" in
+    hyprland/workspaces) printf 'Hyprland workspace dots' ;;
+    custom/scratchpad) printf 'Scratchpad workspace toggle' ;;
+    custom/mpris) printf 'Current media title and controls' ;;
+    clock) printf 'Localized date and calendar' ;;
+    clock#2) printf 'Current time' ;;
+    custom/weather) printf 'Temperature and forecast tooltip' ;;
+    cpu) printf 'CPU usage' ;;
+    memory) printf 'Memory usage' ;;
+    tray) printf 'System tray icons' ;;
+    bluetooth) printf 'Bluetooth status and devices' ;;
+    network) printf 'Wi-Fi/Ethernet status' ;;
+    pulseaudio) printf 'Volume status and mixer shortcut' ;;
+    battery) printf 'Battery status and power menu' ;;
+  esac
+}
+
 mkdir -p "$notarchy_dir"
 [[ -f "$user_env" ]] && source "$user_env"
 
@@ -43,10 +79,18 @@ have_gum() {
   [[ ${NOTARCHY_NO_GUM:-0} != 1 ]] && command -v gum >/dev/null 2>&1
 }
 
+have_zenity() {
+  [[ ${NOTARCHY_NO_ZENITY:-0} != 1 ]] && command -v zenity >/dev/null 2>&1 && [[ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]]
+}
+
 ask() {
   local prompt="$1" default="$2" override="${3:-}" answer
   if [[ -n "$override" && -v "$override" ]]; then
     printf '%s\n' "${!override}"
+    return
+  fi
+  if have_zenity; then
+    zenity --entry --title "NotArchy Setup" --text "$prompt" --entry-text "$default"
     return
   fi
   if have_gum; then
@@ -55,6 +99,40 @@ ask() {
     read -r -p "$prompt [$default]: " answer
     printf '%s\n' "${answer:-$default}"
   fi
+}
+
+ask_color() {
+  local prompt="$1" default="$2" override="${3:-}" answer
+  if [[ -n "$override" && -v "$override" ]]; then
+    printf '%s\n' "${!override}"
+    return
+  fi
+  if have_zenity; then
+    answer="$(zenity --color-selection --title "$prompt" --color "$default" --show-palette)"
+    normalize_color "$answer"
+    return
+  fi
+  ask "$prompt" "$default"
+}
+
+normalize_color() {
+  local color="$1" r g b rgb_re
+  if [[ "$color" =~ ^#[0-9A-Fa-f]{6}$ ]]; then
+    printf '%s\n' "$color"
+    return
+  fi
+  rgb_re='^rgba?\(([0-9]+),[[:space:]]*([0-9]+),[[:space:]]*([0-9]+)(,[^)]+)?\)$'
+  if [[ "$color" =~ $rgb_re ]]; then
+    r="${BASH_REMATCH[1]}"
+    g="${BASH_REMATCH[2]}"
+    b="${BASH_REMATCH[3]}"
+    (( r > 255 )) && r=$((r / 257))
+    (( g > 255 )) && g=$((g / 257))
+    (( b > 255 )) && b=$((b / 257))
+    printf '#%02x%02x%02x\n' "$r" "$g" "$b"
+    return
+  fi
+  printf '%s\n' "$color"
 }
 
 contains_module() {
@@ -79,9 +157,24 @@ valid_modules() {
 }
 
 pick_modules() {
-  local selected picked=()
+  local module selected picked=() args=()
   if [[ -n ${NOTARCHY_ONBOARDING_MODULES+x} ]]; then
     printf '%s\n' "$NOTARCHY_ONBOARDING_MODULES"
+    return
+  fi
+  if have_zenity; then
+    for module in "${all_modules[@]}"; do
+      if contains_module "$module"; then
+        args+=(TRUE "$module" "$(module_label "$module")" "$(module_description "$module")")
+      else
+        args+=(FALSE "$module" "$(module_label "$module")" "$(module_description "$module")")
+      fi
+    done
+    zenity --list --checklist --multiple --separator=, --print-column=2 \
+      --title "NotArchy Setup" \
+      --text "Choose Waybar modules" \
+      --column "Use" --column "Module" --column "Name" --column "Description" \
+      "${args[@]}"
     return
   fi
   if have_gum; then
@@ -191,15 +284,27 @@ WAYBAR
 
 apply_preferences() {
   [[ "$skip_apply" == 1 ]] && return
-  [[ -n "$timezone" ]] && sudo timedatectl set-timezone "$timezone"
+  if [[ -n "$timezone" ]]; then
+    if command -v pkexec >/dev/null 2>&1; then
+      pkexec timedatectl set-timezone "$timezone"
+    else
+      sudo timedatectl set-timezone "$timezone"
+    fi
+  fi
   command -v hyprctl >/dev/null 2>&1 && hyprctl reload || true
   command -v waybar >/dev/null 2>&1 || return
-  pkill waybar 2>/dev/null || true
+  pkill -SIGUSR2 waybar 2>/dev/null && return
   if command -v uwsm-app >/dev/null 2>&1; then
     uwsm-app -- waybar >/dev/null 2>&1 &
   else
     waybar >/dev/null 2>&1 &
   fi
+}
+
+ask_system_fields() {
+  keyboard_layout="$(ask "Keyboard layout" "$keyboard_layout" NOTARCHY_ONBOARDING_KEYBOARD_LAYOUT)"
+  keyboard_variant="$(ask "Keyboard variant" "$keyboard_variant" NOTARCHY_ONBOARDING_KEYBOARD_VARIANT)"
+  timezone="$(ask "Timezone" "$timezone" NOTARCHY_ONBOARDING_TIMEZONE)"
 }
 
 if [[ "${1:-}" == "--ensure-defaults" ]]; then
@@ -210,12 +315,10 @@ fi
 
 : > "$seen_file"
 
-background="$(ask "Waybar background" "$background" NOTARCHY_ONBOARDING_BACKGROUND)"
-foreground="$(ask "Waybar foreground" "$foreground" NOTARCHY_ONBOARDING_FOREGROUND)"
+background="$(ask_color "Waybar background" "$background" NOTARCHY_ONBOARDING_BACKGROUND)"
+foreground="$(ask_color "Waybar foreground" "$foreground" NOTARCHY_ONBOARDING_FOREGROUND)"
 modules="$(pick_modules)"
-keyboard_layout="$(ask "Keyboard layout" "$keyboard_layout" NOTARCHY_ONBOARDING_KEYBOARD_LAYOUT)"
-keyboard_variant="$(ask "Keyboard variant" "$keyboard_variant" NOTARCHY_ONBOARDING_KEYBOARD_VARIANT)"
-timezone="$(ask "Timezone" "$timezone" NOTARCHY_ONBOARDING_TIMEZONE)"
+ask_system_fields
 
 valid_hex "$background" || { printf 'Invalid background color: %s\n' "$background" >&2; exit 1; }
 valid_hex "$foreground" || { printf 'Invalid foreground color: %s\n' "$foreground" >&2; exit 1; }
@@ -235,4 +338,7 @@ write_preferences
 write_waybar_config
 apply_preferences
 
+if have_zenity; then
+  zenity --info --title "NotArchy Setup" --text "Setup saved."
+fi
 printf 'NotArchy onboarding saved.\n'

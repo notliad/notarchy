@@ -7,6 +7,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 HOME="$tmp/ensure-home" \
 XDG_CONFIG_HOME="$tmp/ensure-home/.config" \
+NOTARCHY_NO_ZENITY=1 \
 NOTARCHY_ONBOARDING_SKIP_APPLY=1 \
   "$repo_root/bin/notarchy-onboarding" --ensure-defaults
 
@@ -17,6 +18,7 @@ NOTARCHY_ONBOARDING_SKIP_APPLY=1 \
 
 HOME="$tmp/home" \
 XDG_CONFIG_HOME="$tmp/home/.config" \
+NOTARCHY_NO_ZENITY=1 \
 NOTARCHY_NO_GUM=1 \
 NOTARCHY_ONBOARDING_SKIP_APPLY=1 \
 NOTARCHY_ONBOARDING_BACKGROUND='#112233' \
