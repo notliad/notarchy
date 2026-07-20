@@ -53,6 +53,7 @@ grep -Fq 'systemctl enable docker.socket' <<<"$notarchy_output"
 grep -Fq 'ensure_user_dns' "$repo_root/install/notarchy-install"
 grep -Fq 'getent hosts aur.archlinux.org' "$repo_root/install/notarchy-install"
 grep -Fq 'mkdir -p /mnt/boot/loader/entries /mnt/etc/greetd /mnt/usr/share/notarchy' "$repo_root/install/notarchy-install"
+grep -Fq 'Failed command at line' "$repo_root/install/notarchy-install"
 grep -Fq 'env HOME="/home/$username" GIT_CONFIG_NOSYSTEM=1 bash -c' "$repo_root/install/notarchy-install"
 ! grep -Fq 'sudo -u "$username" bash -lc' "$repo_root/install/notarchy-install"
 

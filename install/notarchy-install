@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 dry_run=false
@@ -21,6 +21,8 @@ package_profile="${NOTARCHY_PACKAGE_PROFILE:-}"
 custom_programs="${NOTARCHY_CUSTOM_PROGRAMS:-}"
 current_stage="preflight"
 installation_started=false
+failed_command=""
+failed_line=""
 official_packages=()
 aur_packages=()
 
@@ -61,11 +63,22 @@ cleanup() {
     close_target || true
   fi
   if (( status != 0 )); then
+    if [[ -n "$failed_command" ]]; then
+      printf '\nFailed command at line %s: %s\n' "$failed_line" "$failed_command" >&2
+    fi
     printf '\nInstallation failed during: %s\nFix the reported problem and start the installer again.\n' "$current_stage" >&2
   fi
   exit "$status"
 }
 
+on_error() {
+  local status=$?
+  failed_line="${BASH_LINENO[0]}"
+  failed_command="$BASH_COMMAND"
+  return "$status"
+}
+
+trap on_error ERR
 trap cleanup EXIT
 
 close_target() {
