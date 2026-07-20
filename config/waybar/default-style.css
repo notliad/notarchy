@@ -26,6 +26,10 @@ window#waybar {
   opacity: 0.5;
 }
 
+#workspaces button.active {
+  color: @accent;
+}
+
 #pulseaudio,
 #custom-update {
   min-width: 12px;
@@ -84,7 +88,7 @@ tooltip {
 }
 
 #custom-screenrecording-indicator.active {
-  color: #a55555;
+  color: @critical;
 }
 #mpris {
   padding: 4px 8px;
@@ -130,7 +134,11 @@ tooltip {
 
 #custom-idle-indicator.active,
 #custom-notification-silencing-indicator.active {
-  color: #a55555;
+  color: @critical;
+}
+
+#network.disconnected {
+  color: @muted;
 }
 
 #custom-scratchpad {

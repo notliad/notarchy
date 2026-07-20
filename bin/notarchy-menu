@@ -305,8 +305,9 @@ show_system_menu() {
 }
 
 show_setup_menu() {
-  case "$(menu "Personalize" "󰭎  Appearance and timezone")" in
+  case "$(menu "Personalize" "󰭎  Appearance and timezone\n󰸌  Waybar theme")" in
     *Appearance*) uwsm-app -- notarchy-onboarding ;;
+    *Waybar*) notarchy-waybar-theme choose ;;
     *) back_to show_main_menu ;;
   esac
 }
@@ -315,7 +316,7 @@ show_main_menu() {
   case "$(menu "Go" "󰉉  Install\n󰭌  Remove\n󰒓  Personalize\n  System")" in
     *Install*) show_install_menu ;;
     *Remove*) show_remove_menu ;;
-    *Personalize*) uwsm-app -- notarchy-onboarding ;;
+    *Personalize*) show_setup_menu ;;
     *System*) show_system_menu ;;
   esac
 }

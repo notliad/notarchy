@@ -28,6 +28,7 @@ required=(
   "Software: essential"
   "+ pacstrap -K /mnt"
   "+ cp -L /etc/resolv.conf /mnt/etc/resolv.conf"
+  "+ arch-chroot /mnt getent hosts aur.archlinux.org"
   "+ arch-chroot /mnt mkinitcpio -P"
   "+ arch-chroot /mnt bootctl install"
   "+ cp -f /mnt/boot/EFI/systemd/systemd-bootx64.efi /mnt/boot/EFI/BOOT/BOOTX64.EFI"

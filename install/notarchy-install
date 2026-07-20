@@ -517,8 +517,9 @@ write_user_preferences() {
     printf 'NOTARCHY_KEYBOARD_LAYOUT=%q\n' "$keyboard_layout"
     printf 'NOTARCHY_KEYBOARD_VARIANT=%q\n' "$keyboard_variant"
     printf 'NOTARCHY_TIMEZONE=UTC\n'
+    printf 'NOTARCHY_WAYBAR_THEME=silver\n'
     printf 'NOTARCHY_WAYBAR_BACKGROUND=#c7c7c7\n'
-    printf 'NOTARCHY_WAYBAR_FOREGROUND=#131313\n'
+    printf 'NOTARCHY_WAYBAR_FOREGROUND=#272838\n'
     printf 'NOTARCHY_WAYBAR_MODULES=hyprland/workspaces,custom/scratchpad,mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery\n'
   } > "$config_dir/user.env"
   {
@@ -547,10 +548,18 @@ format_and_open_luks() {
 copy_dns_config() {
   if "$dry_run"; then
     printf '+ cp -L /etc/resolv.conf /mnt/etc/resolv.conf\n'
+    printf '+ arch-chroot /mnt getent hosts aur.archlinux.org\n'
     return
   fi
 
   cp -L /etc/resolv.conf /mnt/etc/resolv.conf
+  arch-chroot /mnt getent hosts aur.archlinux.org >/dev/null 2>&1 && return
+
+  printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > /mnt/etc/resolv.conf
+  arch-chroot /mnt getent hosts aur.archlinux.org >/dev/null 2>&1 || {
+    printf 'Target system cannot resolve aur.archlinux.org. Check DNS/network and retry.\n' >&2
+    exit 1
+  }
 }
 
 install_yay() {

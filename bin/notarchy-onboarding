@@ -2,6 +2,8 @@
 set -euo pipefail
 
 config_root="${XDG_CONFIG_HOME:-$HOME/.config}"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+theme_cmd="${NOTARCHY_WAYBAR_THEME_CMD:-$script_dir/notarchy-waybar-theme}"
 notarchy_dir="$config_root/notarchy"
 user_env="$notarchy_dir/user.env"
 hypr_user="$notarchy_dir/hypr-user.conf"
@@ -69,8 +71,9 @@ module_description() {
 mkdir -p "$notarchy_dir"
 [[ -f "$user_env" ]] && source "$user_env"
 
+theme="${NOTARCHY_WAYBAR_THEME:-silver}"
 background="${NOTARCHY_WAYBAR_BACKGROUND:-#c7c7c7}"
-foreground="${NOTARCHY_WAYBAR_FOREGROUND:-#131313}"
+foreground="${NOTARCHY_WAYBAR_FOREGROUND:-#272838}"
 modules="${NOTARCHY_WAYBAR_MODULES:-$default_modules}"
 modules="${modules//custom\/mpris/mpris}"
 keyboard_layout="${NOTARCHY_KEYBOARD_LAYOUT:-br}"
@@ -116,6 +119,40 @@ ask_color() {
     return
   fi
   ask "$prompt" "$default"
+}
+
+pick_theme() {
+  local selected choices=()
+  if [[ -n ${NOTARCHY_ONBOARDING_THEME+x} ]]; then
+    printf '%s\n' "$NOTARCHY_ONBOARDING_THEME"
+    return
+  fi
+  if have_zenity; then
+    mapfile -t choices < <("$theme_cmd" list)
+    zenity --list --title "NotArchy Setup" --text "Step 2 of 3 - Waybar theme" --column Theme "${choices[@]}"
+    return
+  fi
+  if have_gum; then
+    "$theme_cmd" list | gum choose --selected "$theme" --header "Step 2 of 3 - Waybar theme"
+    return
+  fi
+  printf 'Step 2 of 3 - Waybar theme [%s]: ' "$theme"
+  read -r selected
+  printf '%s\n' "${selected:-$theme}"
+}
+
+write_waybar_style() {
+  if [[ "$theme" == custom ]]; then
+    {
+      printf '@define-color background %s;\n' "$background"
+      printf '@define-color foreground %s;\n' "$foreground"
+      printf '@define-color accent #427aa1;\n'
+      printf '@define-color muted #786f52;\n'
+      printf '@define-color critical #cc2936;\n'
+    } > "$waybar_style"
+  else
+    "$theme_cmd" css "$theme" > "$waybar_style"
+  fi
 }
 
 normalize_color() {
@@ -220,11 +257,13 @@ selected_group() {
 }
 
 write_preferences() {
+  [[ "$theme" == custom ]] || read -r background foreground _ < <("$theme_cmd" colors "$theme")
   cat > "$user_env" <<ENV
 NOTARCHY_LOCATION=$(printf '%q' "$weather_location")
 NOTARCHY_KEYBOARD_LAYOUT=$(printf '%q' "$keyboard_layout")
 NOTARCHY_KEYBOARD_VARIANT=$(printf '%q' "$keyboard_variant")
 NOTARCHY_TIMEZONE=$(printf '%q' "$timezone")
+NOTARCHY_WAYBAR_THEME=$(printf '%q' "$theme")
 NOTARCHY_WAYBAR_BACKGROUND=$(printf '%q' "$background")
 NOTARCHY_WAYBAR_FOREGROUND=$(printf '%q' "$foreground")
 NOTARCHY_WAYBAR_MODULES=$(printf '%q' "$modules")
@@ -237,10 +276,7 @@ ENV
     printf '}\n'
   } > "$hypr_user"
 
-  {
-    printf '@define-color background %s;\n' "$background"
-    printf '@define-color foreground %s;\n' "$foreground"
-  } > "$waybar_style"
+  write_waybar_style
 }
 
 write_waybar_config() {
@@ -344,12 +380,22 @@ fi
 "$first_run" && welcome
 
 ask_system_fields
-background="$(ask_color "Step 2 of 3 - Waybar background" "$background" NOTARCHY_ONBOARDING_BACKGROUND)"
-foreground="$(ask_color "Step 2 of 3 - Waybar foreground" "$foreground" NOTARCHY_ONBOARDING_FOREGROUND)"
+theme="$(pick_theme)"
 modules="$(pick_modules)"
 
-valid_hex "$background" || { printf 'Invalid background color: %s\n' "$background" >&2; exit 1; }
-valid_hex "$foreground" || { printf 'Invalid foreground color: %s\n' "$foreground" >&2; exit 1; }
+if [[ -n ${NOTARCHY_ONBOARDING_BACKGROUND+x} || -n ${NOTARCHY_ONBOARDING_FOREGROUND+x} ]]; then
+  background="$(ask_color "Step 2 of 3 - Waybar background" "$background" NOTARCHY_ONBOARDING_BACKGROUND)"
+  foreground="$(ask_color "Step 2 of 3 - Waybar foreground" "$foreground" NOTARCHY_ONBOARDING_FOREGROUND)"
+  theme=custom
+fi
+
+if [[ "$theme" == custom ]]; then
+  valid_hex "$background" || { printf 'Invalid background color: %s\n' "$background" >&2; exit 1; }
+  valid_hex "$foreground" || { printf 'Invalid foreground color: %s\n' "$foreground" >&2; exit 1; }
+else
+  "$theme_cmd" colors "$theme" >/dev/null || { printf 'Invalid Waybar theme: %s\n' "$theme" >&2; exit 1; }
+fi
+
 valid_modules || { printf 'Invalid Waybar module list: %s\n' "$modules" >&2; exit 1; }
 [[ "$keyboard_layout" =~ ^[A-Za-z0-9_,+-]+$ ]] || { printf 'Invalid keyboard layout: %s\n' "$keyboard_layout" >&2; exit 1; }
 [[ "$keyboard_variant" =~ ^[A-Za-z0-9_,+-]*$ ]] || { printf 'Invalid keyboard variant: %s\n' "$keyboard_variant" >&2; exit 1; }

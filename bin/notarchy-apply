@@ -47,11 +47,13 @@ ensure_local_preferences() {
     printf 'NOTARCHY_KEYBOARD_LAYOUT=br\n'
     printf 'NOTARCHY_KEYBOARD_VARIANT=abnt2\n'
     printf 'NOTARCHY_TIMEZONE=UTC\n'
+    printf 'NOTARCHY_WAYBAR_THEME=silver\n'
     printf 'NOTARCHY_WAYBAR_BACKGROUND=#c7c7c7\n'
     printf 'NOTARCHY_WAYBAR_FOREGROUND=#131313\n'
     printf 'NOTARCHY_WAYBAR_MODULES=hyprland/workspaces,custom/scratchpad,mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery\n'
   } > "$local_dir/user.env"
   grep -q '^NOTARCHY_TIMEZONE=' "$local_dir/user.env" || printf 'NOTARCHY_TIMEZONE=UTC\n' >> "$local_dir/user.env"
+  grep -q '^NOTARCHY_WAYBAR_THEME=' "$local_dir/user.env" || printf 'NOTARCHY_WAYBAR_THEME=silver\n' >> "$local_dir/user.env"
   grep -q '^NOTARCHY_WAYBAR_BACKGROUND=' "$local_dir/user.env" || printf 'NOTARCHY_WAYBAR_BACKGROUND=#c7c7c7\n' >> "$local_dir/user.env"
   grep -q '^NOTARCHY_WAYBAR_FOREGROUND=' "$local_dir/user.env" || printf 'NOTARCHY_WAYBAR_FOREGROUND=#131313\n' >> "$local_dir/user.env"
   grep -q '^NOTARCHY_WAYBAR_MODULES=' "$local_dir/user.env" || printf 'NOTARCHY_WAYBAR_MODULES=hyprland/workspaces,custom/scratchpad,mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery\n' >> "$local_dir/user.env"
@@ -66,8 +68,14 @@ ensure_local_preferences() {
   } > "$local_dir/hypr-user.conf"
   [[ -e "$local_dir/waybar-style.css" ]] || {
     printf '@define-color background #c7c7c7;\n'
-    printf '@define-color foreground #131313;\n'
+    printf '@define-color foreground #272838;\n'
+    printf '@define-color accent #427aa1;\n'
+    printf '@define-color muted #786f52;\n'
+    printf '@define-color critical #cc2936;\n'
   } > "$local_dir/waybar-style.css"
+  grep -q '@define-color accent ' "$local_dir/waybar-style.css" || printf '@define-color accent #427aa1;\n' >> "$local_dir/waybar-style.css"
+  grep -q '@define-color muted ' "$local_dir/waybar-style.css" || printf '@define-color muted #786f52;\n' >> "$local_dir/waybar-style.css"
+  grep -q '@define-color critical ' "$local_dir/waybar-style.css" || printf '@define-color critical #cc2936;\n' >> "$local_dir/waybar-style.css"
   [[ -e "$local_dir/waybar-config.jsonc" ]] || {
     cat > "$local_dir/waybar-config.jsonc" <<'WAYBAR'
 {

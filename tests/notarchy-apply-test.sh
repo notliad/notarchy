@@ -27,7 +27,9 @@ NOTARCHY_BACKUP_TIMESTAMP=123 \
 [[ -f "$tmp/home/.config/notarchy/hypr-user.conf" ]]
 [[ -f "$tmp/home/.config/notarchy/waybar-style.css" ]]
 [[ -f "$tmp/home/.config/notarchy/waybar-config.jsonc" ]]
+grep -Fq 'NOTARCHY_WAYBAR_THEME=silver' "$tmp/home/.config/notarchy/user.env"
 grep -Fq 'NOTARCHY_WAYBAR_BACKGROUND=#c7c7c7' "$tmp/home/.config/notarchy/user.env"
+grep -Fq '@define-color accent #427aa1;' "$tmp/home/.config/notarchy/waybar-style.css"
 grep -Fq '"include": "../waybar/default-config.jsonc"' "$tmp/home/.config/notarchy/waybar-config.jsonc"
 [[ -f "$tmp/home/.bashrc" && ! -L "$tmp/home/.bashrc" ]]
 
@@ -43,5 +45,14 @@ NOTARCHY_BACKUP_TIMESTAMP=124 \
   "$repo_root/bin/notarchy-apply"
 ! grep -q 'custom/mpris' "$tmp/home/.config/notarchy/user.env"
 ! grep -q 'custom/mpris' "$tmp/home/.config/notarchy/waybar-config.jsonc"
+
+printf '@define-color background #111111;\n@define-color foreground #eeeeee;\n' > "$tmp/home/.config/notarchy/waybar-style.css"
+NOTARCHY_CONFIG_ROOT="$tmp/source-config" \
+NOTARCHY_TARGET_CONFIG_ROOT="$tmp/home/.config" \
+NOTARCHY_HOME_ROOT="$tmp/source-home" \
+NOTARCHY_TARGET_HOME="$tmp/home" \
+NOTARCHY_BACKUP_TIMESTAMP=125 \
+  "$repo_root/bin/notarchy-apply"
+grep -Fq '@define-color critical #cc2936;' "$tmp/home/.config/notarchy/waybar-style.css"
 
 printf 'notarchy-apply test passed\n'

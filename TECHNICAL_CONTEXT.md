@@ -89,7 +89,8 @@ Tracked configs under `config/` are copied into `$HOME/.config` by
   prefix providers for files, symbols, calculator, web search, clipboard, and
   provider selection.
 - Waybar provides workspaces, system status, weather, scratchpad status, and
-  utility hooks into NotArchy commands.
+  utility hooks into NotArchy commands. `notarchy-waybar-theme` writes the
+  selectable palette variants into `~/.config/notarchy/waybar-style.css`.
 - Mako is the notification daemon.
 - `home/.local/share/applications/*.desktop` contains `NoDisplay=true`
   overrides for utility desktop entries that should not clutter the launcher.

@@ -27,4 +27,10 @@ output="$(PATH="$tmp/bin" "$repo_root/config/waybar/modules/scratchpad.sh")"
 [[ "$(jq -r .tooltip <<< "$output")" == Shell ]]
 [[ -n "$(jq -r .text <<< "$output")" ]]
 
+grep -Fq cerulean < <("$repo_root/bin/notarchy-waybar-theme" list)
+grep -Fq '@define-color background #cc2936;' < <("$repo_root/bin/notarchy-waybar-theme" css jam)
+XDG_CONFIG_HOME="$tmp/config" "$repo_root/bin/notarchy-waybar-theme" set olive
+grep -Fq 'NOTARCHY_WAYBAR_THEME=olive' "$tmp/config/notarchy/user.env"
+grep -Fq '@define-color muted #272838;' "$tmp/config/notarchy/waybar-style.css"
+
 printf 'notarchy desktop test passed\n'

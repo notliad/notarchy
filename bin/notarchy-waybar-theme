@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+theme="${2:-}"
+config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/notarchy"
+
+theme_fields() {
+  case "$1" in
+    silver) printf '#c7c7c7 #272838 #427aa1 #786f52 #cc2936\n' ;;
+    shadow) printf '#272838 #c7c7c7 #427aa1 #786f52 #cc2936\n' ;;
+    cerulean) printf '#427aa1 #c7c7c7 #272838 #786f52 #cc2936\n' ;;
+    olive) printf '#786f52 #c7c7c7 #427aa1 #272838 #cc2936\n' ;;
+    jam) printf '#cc2936 #c7c7c7 #272838 #786f52 #427aa1\n' ;;
+    *) return 1 ;;
+  esac
+}
+
+list_themes() {
+  printf '%s\n' silver shadow cerulean olive jam
+}
+
+write_css() {
+  local bg fg accent muted critical
+  read -r bg fg accent muted critical < <(theme_fields "$1")
+  printf '@define-color background %s;\n' "$bg"
+  printf '@define-color foreground %s;\n' "$fg"
+  printf '@define-color accent %s;\n' "$accent"
+  printf '@define-color muted %s;\n' "$muted"
+  printf '@define-color critical %s;\n' "$critical"
+}
+
+upsert_env() {
+  local key="$1" value="$2" file="$3"
+  touch "$file"
+  if grep -q "^$key=" "$file"; then
+    sed -i "s|^$key=.*|$key=$value|" "$file"
+  else
+    printf '%s=%s\n' "$key" "$value" >> "$file"
+  fi
+}
+
+set_theme() {
+  local bg fg
+  read -r bg fg _ < <(theme_fields "$1")
+  mkdir -p "$config_dir"
+  write_css "$1" > "$config_dir/waybar-style.css"
+  upsert_env NOTARCHY_WAYBAR_THEME "$1" "$config_dir/user.env"
+  upsert_env NOTARCHY_WAYBAR_BACKGROUND "$bg" "$config_dir/user.env"
+  upsert_env NOTARCHY_WAYBAR_FOREGROUND "$fg" "$config_dir/user.env"
+  pkill -SIGUSR2 waybar 2>/dev/null || true
+}
+
+choose_theme() {
+  local choice
+  if command -v notarchy-launch-walker >/dev/null 2>&1; then
+    choice="$(list_themes | notarchy-launch-walker --dmenu -p 'Waybar theme...' 2>/dev/null || true)"
+  elif command -v gum >/dev/null 2>&1; then
+    choice="$(list_themes | gum choose --header 'Waybar theme' || true)"
+  else
+    list_themes
+    read -r -p 'Waybar theme: ' choice
+  fi
+  [[ -n "$choice" ]] && set_theme "$choice"
+}
+
+case "${1:-choose}" in
+  list) list_themes ;;
+  css) write_css "$theme" ;;
+  colors) theme_fields "$theme" ;;
+  set) set_theme "$theme" ;;
+  choose) choose_theme ;;
+  *) printf 'Usage: %s [list|css|colors|set|choose] [theme]\n' "${0##*/}" >&2; exit 2 ;;
+esac
