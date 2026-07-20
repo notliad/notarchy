@@ -46,13 +46,51 @@ ensure_local_preferences() {
     printf 'NOTARCHY_LOCATION=\n'
     printf 'NOTARCHY_KEYBOARD_LAYOUT=br\n'
     printf 'NOTARCHY_KEYBOARD_VARIANT=abnt2\n'
+    printf 'NOTARCHY_TIMEZONE=UTC\n'
+    printf 'NOTARCHY_WAYBAR_BACKGROUND=#c7c7c7\n'
+    printf 'NOTARCHY_WAYBAR_FOREGROUND=#131313\n'
+    printf 'NOTARCHY_WAYBAR_MODULES=hyprland/workspaces,custom/scratchpad,custom/mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery\n'
   } > "$local_dir/user.env"
+  grep -q '^NOTARCHY_TIMEZONE=' "$local_dir/user.env" || printf 'NOTARCHY_TIMEZONE=UTC\n' >> "$local_dir/user.env"
+  grep -q '^NOTARCHY_WAYBAR_BACKGROUND=' "$local_dir/user.env" || printf 'NOTARCHY_WAYBAR_BACKGROUND=#c7c7c7\n' >> "$local_dir/user.env"
+  grep -q '^NOTARCHY_WAYBAR_FOREGROUND=' "$local_dir/user.env" || printf 'NOTARCHY_WAYBAR_FOREGROUND=#131313\n' >> "$local_dir/user.env"
+  grep -q '^NOTARCHY_WAYBAR_MODULES=' "$local_dir/user.env" || printf 'NOTARCHY_WAYBAR_MODULES=hyprland/workspaces,custom/scratchpad,custom/mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery\n' >> "$local_dir/user.env"
   [[ -e "$local_dir/hypr-user.conf" ]] || {
     printf 'input {\n'
     printf '  kb_layout = br\n'
     printf '  kb_variant = abnt2\n'
     printf '}\n'
   } > "$local_dir/hypr-user.conf"
+  [[ -e "$local_dir/waybar-style.css" ]] || {
+    printf '@define-color background #c7c7c7;\n'
+    printf '@define-color foreground #131313;\n'
+  } > "$local_dir/waybar-style.css"
+  [[ -e "$local_dir/waybar-config.jsonc" ]] || {
+    cat > "$local_dir/waybar-config.jsonc" <<'WAYBAR'
+{
+  "include": "../waybar/default-config.jsonc",
+  "modules-left": ["group/left-modules", "custom/scratchpad", "custom/mpris"],
+  "modules-center": ["group/clock-weather", "custom/spacer"],
+  "modules-right": ["group/perf-monitor", "group/right-modules", "battery"],
+  "group/clock-weather": {
+    "orientation": "inherit",
+    "modules": ["clock", "clock#2", "custom/weather"],
+  },
+  "group/perf-monitor": {
+    "orientation": "inherit",
+    "modules": ["cpu", "memory"],
+  },
+  "group/left-modules": {
+    "orientation": "inherit",
+    "modules": ["hyprland/workspaces"],
+  },
+  "group/right-modules": {
+    "orientation": "inherit",
+    "modules": ["tray", "bluetooth", "network", "pulseaudio"],
+  },
+}
+WAYBAR
+  }
 }
 
 link_tree() {

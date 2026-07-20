@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config_root="${XDG_CONFIG_HOME:-$HOME/.config}"
+notarchy_dir="$config_root/notarchy"
+user_env="$notarchy_dir/user.env"
+hypr_user="$notarchy_dir/hypr-user.conf"
+waybar_style="$notarchy_dir/waybar-style.css"
+waybar_config="$notarchy_dir/waybar-config.jsonc"
+seen_file="$notarchy_dir/onboarding-seen"
+skip_apply="${NOTARCHY_ONBOARDING_SKIP_APPLY:-0}"
+
+all_modules=(
+  hyprland/workspaces
+  custom/scratchpad
+  custom/mpris
+  clock
+  clock#2
+  custom/weather
+  cpu
+  memory
+  tray
+  bluetooth
+  network
+  pulseaudio
+  battery
+)
+
+default_modules="hyprland/workspaces,custom/scratchpad,custom/mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery"
+
+mkdir -p "$notarchy_dir"
+[[ -f "$user_env" ]] && source "$user_env"
+
+background="${NOTARCHY_WAYBAR_BACKGROUND:-#c7c7c7}"
+foreground="${NOTARCHY_WAYBAR_FOREGROUND:-#131313}"
+modules="${NOTARCHY_WAYBAR_MODULES:-$default_modules}"
+keyboard_layout="${NOTARCHY_KEYBOARD_LAYOUT:-br}"
+keyboard_variant="${NOTARCHY_KEYBOARD_VARIANT:-abnt2}"
+weather_location="${NOTARCHY_LOCATION:-}"
+timezone="${NOTARCHY_TIMEZONE:-$(timedatectl show -p Timezone --value 2>/dev/null || true)}"
+
+have_gum() {
+  [[ ${NOTARCHY_NO_GUM:-0} != 1 ]] && command -v gum >/dev/null 2>&1
+}
+
+ask() {
+  local prompt="$1" default="$2" override="${3:-}" answer
+  if [[ -n "$override" && -v "$override" ]]; then
+    printf '%s\n' "${!override}"
+    return
+  fi
+  if have_gum; then
+    gum input --prompt "$prompt " --value "$default"
+  else
+    read -r -p "$prompt [$default]: " answer
+    printf '%s\n' "${answer:-$default}"
+  fi
+}
+
+contains_module() {
+  [[ ",$modules," == *",$1,"* ]]
+}
+
+valid_hex() {
+  [[ "$1" =~ ^#[0-9A-Fa-f]{6}$ ]]
+}
+
+valid_modules() {
+  local item known module
+  local -a picked
+  IFS=',' read -ra picked <<<"$modules"
+  for item in "${picked[@]}"; do
+    known=false
+    for module in "${all_modules[@]}"; do
+      [[ "$item" == "$module" ]] && known=true
+    done
+    "$known" || return 1
+  done
+}
+
+pick_modules() {
+  local selected picked=()
+  if [[ -n ${NOTARCHY_ONBOARDING_MODULES+x} ]]; then
+    printf '%s\n' "$NOTARCHY_ONBOARDING_MODULES"
+    return
+  fi
+  if have_gum; then
+    selected="$(printf '%s\n' "${all_modules[@]}" | gum choose --no-limit --ordered --selected "$modules" --header "Waybar modules")"
+    printf '%s\n' "${selected//$'\n'/,}"
+    return
+  fi
+  for module in "${all_modules[@]}"; do
+    if contains_module "$module"; then
+      picked+=("$module")
+    fi
+  done
+  printf 'Waybar modules, comma-separated [%s]: ' "$(join_by , "${picked[@]}")"
+  read -r selected
+  printf '%s\n' "${selected:-$(join_by , "${picked[@]}")}"
+}
+
+join_by() {
+  local IFS="$1"
+  shift
+  printf '%s' "$*"
+}
+
+json_array() {
+  local sep="" item
+  printf '['
+  for item in "$@"; do
+    printf '%s"%s"' "$sep" "$item"
+    sep=", "
+  done
+  printf ']'
+}
+
+selected_group() {
+  local item result=()
+  for item in "$@"; do
+    contains_module "$item" && result+=("$item")
+  done
+  json_array "${result[@]}"
+}
+
+write_preferences() {
+  cat > "$user_env" <<ENV
+NOTARCHY_LOCATION=$(printf '%q' "$weather_location")
+NOTARCHY_KEYBOARD_LAYOUT=$(printf '%q' "$keyboard_layout")
+NOTARCHY_KEYBOARD_VARIANT=$(printf '%q' "$keyboard_variant")
+NOTARCHY_TIMEZONE=$(printf '%q' "$timezone")
+NOTARCHY_WAYBAR_BACKGROUND=$(printf '%q' "$background")
+NOTARCHY_WAYBAR_FOREGROUND=$(printf '%q' "$foreground")
+NOTARCHY_WAYBAR_MODULES=$(printf '%q' "$modules")
+ENV
+
+  {
+    printf 'input {\n'
+    printf '  kb_layout = %s\n' "$keyboard_layout"
+    [[ -n "$keyboard_variant" ]] && printf '  kb_variant = %s\n' "$keyboard_variant"
+    printf '}\n'
+  } > "$hypr_user"
+
+  {
+    printf '@define-color background %s;\n' "$background"
+    printf '@define-color foreground %s;\n' "$foreground"
+  } > "$waybar_style"
+}
+
+write_waybar_config() {
+  local left=() center=() right=() clock_modules perf_modules right_modules
+
+  contains_module hyprland/workspaces && left+=("group/left-modules")
+  contains_module custom/scratchpad && left+=("custom/scratchpad")
+  contains_module custom/mpris && left+=("custom/mpris")
+
+  clock_modules="$(selected_group clock clock#2 custom/weather)"
+  [[ "$clock_modules" != "[]" ]] && center+=("group/clock-weather" "custom/spacer")
+
+  perf_modules="$(selected_group cpu memory)"
+  [[ "$perf_modules" != "[]" ]] && right+=("group/perf-monitor")
+  right_modules="$(selected_group tray bluetooth network pulseaudio)"
+  [[ "$right_modules" != "[]" ]] && right+=("group/right-modules")
+  contains_module battery && right+=("battery")
+
+  cat > "$waybar_config" <<WAYBAR
+{
+  "include": "../waybar/default-config.jsonc",
+  "modules-left": $(json_array "${left[@]}"),
+  "modules-center": $(json_array "${center[@]}"),
+  "modules-right": $(json_array "${right[@]}"),
+  "group/clock-weather": {
+    "orientation": "inherit",
+    "modules": $clock_modules,
+  },
+  "group/perf-monitor": {
+    "orientation": "inherit",
+    "modules": $perf_modules,
+  },
+  "group/left-modules": {
+    "orientation": "inherit",
+    "modules": $(selected_group hyprland/workspaces),
+  },
+  "group/right-modules": {
+    "orientation": "inherit",
+    "modules": $right_modules,
+  },
+}
+WAYBAR
+}
+
+apply_preferences() {
+  [[ "$skip_apply" == 1 ]] && return
+  [[ -n "$timezone" ]] && sudo timedatectl set-timezone "$timezone"
+  command -v hyprctl >/dev/null 2>&1 && hyprctl reload || true
+  command -v waybar >/dev/null 2>&1 || return
+  pkill waybar 2>/dev/null || true
+  if command -v uwsm-app >/dev/null 2>&1; then
+    uwsm-app -- waybar >/dev/null 2>&1 &
+  else
+    waybar >/dev/null 2>&1 &
+  fi
+}
+
+if [[ "${1:-}" == "--ensure-defaults" ]]; then
+  [[ -f "$user_env" && -f "$hypr_user" && -f "$waybar_style" ]] || write_preferences
+  [[ -f "$waybar_config" ]] || write_waybar_config
+  exit 0
+fi
+
+: > "$seen_file"
+
+background="$(ask "Waybar background" "$background" NOTARCHY_ONBOARDING_BACKGROUND)"
+foreground="$(ask "Waybar foreground" "$foreground" NOTARCHY_ONBOARDING_FOREGROUND)"
+modules="$(pick_modules)"
+keyboard_layout="$(ask "Keyboard layout" "$keyboard_layout" NOTARCHY_ONBOARDING_KEYBOARD_LAYOUT)"
+keyboard_variant="$(ask "Keyboard variant" "$keyboard_variant" NOTARCHY_ONBOARDING_KEYBOARD_VARIANT)"
+timezone="$(ask "Timezone" "$timezone" NOTARCHY_ONBOARDING_TIMEZONE)"
+
+valid_hex "$background" || { printf 'Invalid background color: %s\n' "$background" >&2; exit 1; }
+valid_hex "$foreground" || { printf 'Invalid foreground color: %s\n' "$foreground" >&2; exit 1; }
+valid_modules || { printf 'Invalid Waybar module list: %s\n' "$modules" >&2; exit 1; }
+[[ "$keyboard_layout" =~ ^[A-Za-z0-9_,+-]+$ ]] || { printf 'Invalid keyboard layout: %s\n' "$keyboard_layout" >&2; exit 1; }
+[[ "$keyboard_variant" =~ ^[A-Za-z0-9_,+-]*$ ]] || { printf 'Invalid keyboard variant: %s\n' "$keyboard_variant" >&2; exit 1; }
+[[ ! "$weather_location" =~ [[:cntrl:]] ]] || { printf 'Invalid weather location.\n' >&2; exit 1; }
+
+if contains_module custom/weather; then
+  weather_location="$(ask "Weather location" "$weather_location" NOTARCHY_ONBOARDING_LOCATION)"
+else
+  weather_location=""
+fi
+[[ ! "$weather_location" =~ [[:cntrl:]] ]] || { printf 'Invalid weather location.\n' >&2; exit 1; }
+
+write_preferences
+write_waybar_config
+apply_preferences
+
+printf 'NotArchy onboarding saved.\n'

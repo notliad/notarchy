@@ -304,6 +304,10 @@ write_user_preferences() {
     printf 'NOTARCHY_LOCATION=%q\n' "$weather_location"
     printf 'NOTARCHY_KEYBOARD_LAYOUT=%q\n' "$keyboard_layout"
     printf 'NOTARCHY_KEYBOARD_VARIANT=%q\n' "$keyboard_variant"
+    printf 'NOTARCHY_TIMEZONE=UTC\n'
+    printf 'NOTARCHY_WAYBAR_BACKGROUND=#c7c7c7\n'
+    printf 'NOTARCHY_WAYBAR_FOREGROUND=#131313\n'
+    printf 'NOTARCHY_WAYBAR_MODULES=hyprland/workspaces,custom/scratchpad,custom/mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery\n'
   } > "$config_dir/user.env"
   {
     printf 'input {\n'
