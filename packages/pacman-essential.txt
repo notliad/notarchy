@@ -29,7 +29,8 @@ xdg-desktop-portal-hyprland
 xdg-desktop-portal-gtk
 waybar
 greetd
-greetd-tuigreet
+cage
+greetd-regreet
 ghostty
 firefox
 nautilus
@@ -48,6 +49,7 @@ satty
 swaybg
 uwsm
 ttf-jetbrains-mono-nerd
+ttf-0xproto-nerd
 ttf-nerd-fonts-symbols
 noto-fonts
 noto-fonts-emoji

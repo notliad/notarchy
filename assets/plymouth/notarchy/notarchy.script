@@ -9,7 +9,7 @@ fun center_sprite(sprite, image, y) {
   sprite.SetY(y);
 }
 
-title.image = Image.Text("NotArchy", 0.557, 0.753, 0.486);
+title.image = Image("logo.png");
 title.sprite = Sprite(title.image);
 center_sprite(title.sprite, title.image, Window.GetHeight() / 2 - 120);
 title.sprite.SetOpacity(1);

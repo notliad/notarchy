@@ -27,7 +27,7 @@ The complete NotArchy defaults profile includes:
   Btrfs, LUKS, EFI boot tools, `sudo`, `git`, `go`, `gum`, NetworkManager,
   Bluetooth, power profiles, and Plymouth.
 - Desktop stack: Hyprland, Hypridle, Hyprlock, Hyprpicker, XDG desktop portals,
-  Waybar, greetd/tuigreet, Ghostty, Nautilus, Mako, Polkit GNOME, PipeWire,
+  Waybar, greetd/ReGreet, Ghostty, Nautilus, Mako, Polkit GNOME, PipeWire,
   WirePlumber, Swaybg, UWSM, clipboard/screenshot/OCR tools, and Nerd Fonts.
 - Graphical apps: GNOME Calculator, Evince, KolourPaint, nwg-displays, Google
   Chrome, VS Code, LocalSend, Walker, Elephant providers, Mutui, and Liftoff.
@@ -42,7 +42,7 @@ separate from official packages so third-party package decisions stay visible.
 ## Default Desktop
 
 The desktop is Hyprland with Ghostty as the default terminal, Walker as the app
-launcher, Waybar as the panel, Mako for notifications, and `greetd + tuigreet`
+launcher, Waybar as the panel, Mako for notifications, and `greetd + ReGreet`
 for login. Hyprland configuration is split by responsibility:
 
 - `config/hypr/hyprland.conf`: entrypoint that sources all other Hyprland files.

@@ -45,7 +45,7 @@ done
 ! grep -Fq 'usermod -aG docker' <<<"$output"
 
 notarchy_output="$(install_dry_run notarchy)"
-grep -Fq 'Software: notarchy (82 official, 20 AUR)' <<<"$notarchy_output"
+grep -Fq 'Software: notarchy (84 official, 20 AUR)' <<<"$notarchy_output"
 grep -Fq 'systemctl enable docker.socket' <<<"$notarchy_output"
 
 custom_output="$(install_dry_run custom --programs chrome,docker)"

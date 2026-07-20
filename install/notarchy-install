@@ -193,9 +193,28 @@ BOOT
 vt = 1
 
 [default_session]
-command = "tuigreet --greeting 'NotArchy' --asterisks --time --remember --cmd notarchy-start-hyprland"
+command = "dbus-run-session cage -s -mlast -d -- regreet"
 user = "greeter"
 GREETD
+
+  mkdir -p /mnt/usr/share/notarchy
+  cp -f "$repo_root/assets/plymouth/notarchy/logo.png" /mnt/usr/share/notarchy/login-logo.png
+  cat > /mnt/etc/greetd/regreet.toml <<REGREET
+[appearance]
+greeting_msg = "NotArchy"
+
+[background]
+path = "/usr/share/notarchy/login-logo.png"
+fit = "Contain"
+
+[GTK]
+application_prefer_dark_theme = true
+font_name = "0xProto Nerd Font 13"
+
+[commands]
+reboot = ["systemctl", "reboot"]
+poweroff = ["systemctl", "poweroff"]
+REGREET
 }
 
 require_root() {

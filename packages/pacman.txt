@@ -29,7 +29,8 @@ xdg-desktop-portal-hyprland
 xdg-desktop-portal-gtk
 waybar
 greetd
-greetd-tuigreet
+cage
+greetd-regreet
 ghostty
 nautilus
 gnome-calculator
@@ -55,6 +56,7 @@ tesseract-data-eng
 swaybg
 uwsm
 ttf-jetbrains-mono-nerd
+ttf-0xproto-nerd
 ttf-nerd-fonts-symbols
 noto-fonts
 noto-fonts-emoji
