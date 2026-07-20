@@ -563,6 +563,37 @@ copy_dns_config() {
   }
 }
 
+fix_target_etc_permissions() {
+  if "$dry_run"; then
+    printf '+ chmod 0755 /mnt /mnt/etc\n'
+    printf '+ chmod 0644 /mnt/etc/resolv.conf /mnt/etc/hosts /mnt/etc/profile /mnt/etc/gitconfig\n'
+    return
+  fi
+
+  chmod 0755 /mnt /mnt/etc
+  for file in /mnt/etc/resolv.conf /mnt/etc/hosts /mnt/etc/profile /mnt/etc/gitconfig; do
+    [[ -e "$file" ]] && chmod 0644 "$file"
+  done
+}
+
+ensure_user_dns() {
+  if "$dry_run"; then
+    printf '+ arch-chroot /mnt sudo -u %q env HOME=/home/%q GIT_CONFIG_NOSYSTEM=1 getent hosts aur.archlinux.org\n' "$username" "$username"
+    return
+  fi
+
+  fix_target_etc_permissions
+  arch-chroot /mnt sudo -u "$username" env HOME="/home/$username" GIT_CONFIG_NOSYSTEM=1 getent hosts aur.archlinux.org >/dev/null 2>&1 && return
+
+  rm -f /mnt/etc/resolv.conf
+  printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > /mnt/etc/resolv.conf
+  fix_target_etc_permissions
+  arch-chroot /mnt sudo -u "$username" env HOME="/home/$username" GIT_CONFIG_NOSYSTEM=1 getent hosts aur.archlinux.org >/dev/null 2>&1 || {
+    printf 'Target user cannot resolve aur.archlinux.org. Check DNS/network and retry.\n' >&2
+    exit 1
+  }
+}
+
 install_yay() {
   arch-chroot /mnt rm -rf "/home/$username/.cache/yay-build"
   retry arch-chroot /mnt sudo -u "$username" env HOME="/home/$username" GIT_CONFIG_NOSYSTEM=1 bash -c '
@@ -692,12 +723,14 @@ main() {
   run mkdir -p /mnt/boot/EFI/BOOT
   run cp -f /mnt/boot/EFI/systemd/systemd-bootx64.efi /mnt/boot/EFI/BOOT/BOOTX64.EFI
   write_target_files "$uuid"
+  fix_target_etc_permissions
   run arch-chroot /mnt systemctl enable NetworkManager bluetooth greetd power-profiles-daemon
   if [[ " ${official_packages[*]} " == *" docker "* ]]; then
     run arch-chroot /mnt systemctl enable docker.socket
   fi
 
   if ! "$dry_run" && ((${#aur_packages[@]} > 0)); then
+    ensure_user_dns
     ui_info "Installing yay"
     install_yay
     ui_info "Installing AUR packages"

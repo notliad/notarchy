@@ -32,6 +32,7 @@ required=(
   "+ arch-chroot /mnt mkinitcpio -P"
   "+ arch-chroot /mnt bootctl install"
   "+ cp -f /mnt/boot/EFI/systemd/systemd-bootx64.efi /mnt/boot/EFI/BOOT/BOOTX64.EFI"
+  "+ chmod 0755 /mnt /mnt/etc"
   "+ arch-chroot /mnt ln -sf /home/notliad/.local/share/notarchy/bin/notarchy-apply /usr/local/bin/notarchy-apply"
   "+ arch-chroot /mnt sudo -u notliad /home/notliad/.local/share/notarchy/bin/notarchy-apply"
 )
@@ -49,6 +50,8 @@ done
 notarchy_output="$(install_dry_run notarchy)"
 grep -Fq 'Software: notarchy (84 official, 20 AUR)' <<<"$notarchy_output"
 grep -Fq 'systemctl enable docker.socket' <<<"$notarchy_output"
+grep -Fq 'ensure_user_dns' "$repo_root/install/notarchy-install"
+grep -Fq 'getent hosts aur.archlinux.org' "$repo_root/install/notarchy-install"
 grep -Fq 'env HOME="/home/$username" GIT_CONFIG_NOSYSTEM=1 bash -c' "$repo_root/install/notarchy-install"
 ! grep -Fq 'sudo -u "$username" bash -lc' "$repo_root/install/notarchy-install"
 
