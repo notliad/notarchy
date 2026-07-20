@@ -544,6 +544,15 @@ format_and_open_luks() {
   unset disk_password disk_password_confirm
 }
 
+copy_dns_config() {
+  if "$dry_run"; then
+    printf '+ cp -L /etc/resolv.conf /mnt/etc/resolv.conf\n'
+    return
+  fi
+
+  cp -L /etc/resolv.conf /mnt/etc/resolv.conf
+}
+
 install_yay() {
   arch-chroot /mnt rm -rf "/home/$username/.cache/yay-build"
   retry arch-chroot /mnt sudo -u "$username" env HOME="/home/$username" GIT_CONFIG_NOSYSTEM=1 bash -c '
@@ -644,6 +653,7 @@ main() {
   run mount "$efi_part" /mnt/boot
 
   run_step "Installing base system" pacstrap -K /mnt "${official_packages[@]}"
+  copy_dns_config
 
   run arch-chroot /mnt ln -sf /usr/share/zoneinfo/UTC /etc/localtime
   run arch-chroot /mnt hwclock --systohc
