@@ -211,7 +211,9 @@ command = "dbus-run-session cage -s -mlast -d -- regreet"
 user = "greeter"
 GREETD
 
-  [[ -f "$repo_root/assets/plymouth/notarchy/logo.png" ]] && cp -f "$repo_root/assets/plymouth/notarchy/logo.png" /mnt/usr/share/notarchy/login-logo.png
+  if [[ -f "$repo_root/assets/plymouth/notarchy/logo.png" ]]; then
+    cp -f "$repo_root/assets/plymouth/notarchy/logo.png" /mnt/usr/share/notarchy/login-logo.png
+  fi
   cat > /mnt/etc/greetd/regreet.toml <<REGREET
 [appearance]
 greeting_msg = "NotArchy"
@@ -589,7 +591,9 @@ fix_target_etc_permissions() {
 
   chmod 0755 /mnt /mnt/etc
   for file in /mnt/etc/resolv.conf /mnt/etc/hosts /mnt/etc/profile /mnt/etc/gitconfig; do
-    [[ -e "$file" ]] && chmod 0644 "$file"
+    if [[ -e "$file" ]]; then
+      chmod 0644 "$file"
+    fi
   done
 }
 
