@@ -547,12 +547,13 @@ format_and_open_luks() {
 
 copy_dns_config() {
   if "$dry_run"; then
-    printf '+ cp -L /etc/resolv.conf /mnt/etc/resolv.conf\n'
+    printf '+ install -Dm0644 /etc/resolv.conf /mnt/etc/resolv.conf\n'
     printf '+ arch-chroot /mnt getent hosts aur.archlinux.org\n'
     return
   fi
 
-  cp -L /etc/resolv.conf /mnt/etc/resolv.conf
+  rm -f /mnt/etc/resolv.conf
+  install -Dm0644 /etc/resolv.conf /mnt/etc/resolv.conf
   arch-chroot /mnt getent hosts aur.archlinux.org >/dev/null 2>&1 && return
 
   printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > /mnt/etc/resolv.conf
