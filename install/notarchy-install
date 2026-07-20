@@ -174,6 +174,7 @@ write_target_files() {
   printf '%s:%s\n' "$username" "$user_password" | arch-chroot /mnt chpasswd
   unset user_password user_password_confirm
 
+  mkdir -p /mnt/boot/loader/entries /mnt/etc/greetd /mnt/usr/share/notarchy
   cat > /mnt/boot/loader/loader.conf <<BOOT
 default notarchy.conf
 timeout 3
@@ -197,15 +198,10 @@ command = "dbus-run-session cage -s -mlast -d -- regreet"
 user = "greeter"
 GREETD
 
-  mkdir -p /mnt/usr/share/notarchy
-  cp -f "$repo_root/assets/plymouth/notarchy/logo.png" /mnt/usr/share/notarchy/login-logo.png
+  [[ -f "$repo_root/assets/plymouth/notarchy/logo.png" ]] && cp -f "$repo_root/assets/plymouth/notarchy/logo.png" /mnt/usr/share/notarchy/login-logo.png
   cat > /mnt/etc/greetd/regreet.toml <<REGREET
 [appearance]
 greeting_msg = "NotArchy"
-
-[background]
-path = "/usr/share/notarchy/login-logo.png"
-fit = "Contain"
 
 [GTK]
 application_prefer_dark_theme = true
@@ -215,6 +211,14 @@ font_name = "0xProto Nerd Font 13"
 reboot = ["systemctl", "reboot"]
 poweroff = ["systemctl", "poweroff"]
 REGREET
+  if [[ -f /mnt/usr/share/notarchy/login-logo.png ]]; then
+    cat >> /mnt/etc/greetd/regreet.toml <<REGREET
+
+[background]
+path = "/usr/share/notarchy/login-logo.png"
+fit = "Contain"
+REGREET
+  fi
 }
 
 require_root() {
