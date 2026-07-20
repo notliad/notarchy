@@ -546,7 +546,7 @@ format_and_open_luks() {
 
 install_yay() {
   arch-chroot /mnt rm -rf "/home/$username/.cache/yay-build"
-  retry arch-chroot /mnt sudo -u "$username" bash -lc '
+  retry arch-chroot /mnt sudo -u "$username" env HOME="/home/$username" bash -c '
     set -euo pipefail
     mkdir -p ~/.cache
     cd ~/.cache
