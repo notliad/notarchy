@@ -49,12 +49,15 @@ ensure_local_preferences() {
     printf 'NOTARCHY_TIMEZONE=UTC\n'
     printf 'NOTARCHY_WAYBAR_BACKGROUND=#c7c7c7\n'
     printf 'NOTARCHY_WAYBAR_FOREGROUND=#131313\n'
-    printf 'NOTARCHY_WAYBAR_MODULES=hyprland/workspaces,custom/scratchpad,custom/mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery\n'
+    printf 'NOTARCHY_WAYBAR_MODULES=hyprland/workspaces,custom/scratchpad,mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery\n'
   } > "$local_dir/user.env"
   grep -q '^NOTARCHY_TIMEZONE=' "$local_dir/user.env" || printf 'NOTARCHY_TIMEZONE=UTC\n' >> "$local_dir/user.env"
   grep -q '^NOTARCHY_WAYBAR_BACKGROUND=' "$local_dir/user.env" || printf 'NOTARCHY_WAYBAR_BACKGROUND=#c7c7c7\n' >> "$local_dir/user.env"
   grep -q '^NOTARCHY_WAYBAR_FOREGROUND=' "$local_dir/user.env" || printf 'NOTARCHY_WAYBAR_FOREGROUND=#131313\n' >> "$local_dir/user.env"
-  grep -q '^NOTARCHY_WAYBAR_MODULES=' "$local_dir/user.env" || printf 'NOTARCHY_WAYBAR_MODULES=hyprland/workspaces,custom/scratchpad,custom/mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery\n' >> "$local_dir/user.env"
+  grep -q '^NOTARCHY_WAYBAR_MODULES=' "$local_dir/user.env" || printf 'NOTARCHY_WAYBAR_MODULES=hyprland/workspaces,custom/scratchpad,mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery\n' >> "$local_dir/user.env"
+  if grep -q 'custom/mpris' "$local_dir/user.env"; then
+    run sed -i 's#custom/mpris#mpris#g' "$local_dir/user.env"
+  fi
   [[ -e "$local_dir/hypr-user.conf" ]] || {
     printf 'input {\n'
     printf '  kb_layout = br\n'
@@ -69,7 +72,7 @@ ensure_local_preferences() {
     cat > "$local_dir/waybar-config.jsonc" <<'WAYBAR'
 {
   "include": "../waybar/default-config.jsonc",
-  "modules-left": ["group/left-modules", "custom/scratchpad", "custom/mpris"],
+  "modules-left": ["group/left-modules", "custom/scratchpad", "mpris"],
   "modules-center": ["group/clock-weather", "custom/spacer"],
   "modules-right": ["group/perf-monitor", "group/right-modules", "battery"],
   "group/clock-weather": {
@@ -91,28 +94,26 @@ ensure_local_preferences() {
 }
 WAYBAR
   }
+  if grep -q 'custom/mpris' "$local_dir/waybar-config.jsonc"; then
+    run sed -i 's#custom/mpris#mpris#g' "$local_dir/waybar-config.jsonc"
+  fi
 }
 
-link_tree() {
+apply_tree() {
   local source_root="$1" target_base="$2"
   [[ -d "$source_root" ]] || return 0
 
   find "$source_root" -type f -print0 | while IFS= read -r -d '' source; do
     rel="${source#"$source_root"/}"
     target="$target_base/$rel"
-    link_target="$source"
-
     run mkdir -p "$(dirname -- "$target")"
 
-    if [[ -L "$target" ]]; then
-      current="$(readlink -- "$target")"
-      [[ "$current" == "$link_target" ]] && continue
-      run mv -- "$target" "$target.bak.$timestamp"
-    elif [[ -e "$target" ]]; then
+    if [[ -e "$target" || -L "$target" ]]; then
+      [[ -f "$target" && ! -L "$target" ]] && cmp -s -- "$source" "$target" && continue
       run mv -- "$target" "$target.bak.$timestamp"
     fi
 
-    run ln -s -- "$link_target" "$target"
+    run cp -a -- "$source" "$target"
   done
 }
 
@@ -122,5 +123,5 @@ link_tree() {
 }
 
 ensure_local_preferences
-link_tree "$config_root" "$target_root"
-link_tree "$home_root" "$target_home"
+apply_tree "$config_root" "$target_root"
+apply_tree "$home_root" "$target_home"

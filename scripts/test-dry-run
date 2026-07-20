@@ -2,18 +2,30 @@
 set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-output="$(
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+printf 'notarchy\n' > "$tmp/password"
+
+install_dry_run() {
+  local profile="$1"
+  shift
   NOTARCHY_NO_GUM=1 "$repo_root/install/notarchy-install" \
     --dry-run \
     --disk /dev/vda \
     --hostname notarchy \
     --username notliad \
-    --password notarchy \
-    --yes
-)"
+    --disk-password-file "$tmp/password" \
+    --user-password-file "$tmp/password" \
+    --profile "$profile" \
+    --yes \
+    "$@"
+}
+
+output="$(install_dry_run essential)"
 
 required=(
   "Selected disk: /dev/vda"
+  "Software: essential"
   "+ pacstrap -K /mnt"
   "+ arch-chroot /mnt mkinitcpio -P"
   "+ arch-chroot /mnt bootctl install"
@@ -28,6 +40,18 @@ for needle in "${required[@]}"; do
     exit 1
   fi
 done
+
+! grep -Fq 'systemctl enable docker.socket' <<<"$output"
+! grep -Fq 'usermod -aG docker' <<<"$output"
+
+notarchy_output="$(install_dry_run notarchy)"
+grep -Fq 'Software: notarchy (82 official, 20 AUR)' <<<"$notarchy_output"
+grep -Fq 'systemctl enable docker.socket' <<<"$notarchy_output"
+
+custom_output="$(install_dry_run custom --programs chrome,docker)"
+grep -Fq 'Software: custom' <<<"$custom_output"
+grep -Fq 'docker-compose' <<<"$custom_output"
+grep -Fq 'systemctl enable docker.socket' <<<"$custom_output"
 
 printf '%s\n' "$output"
 printf '\nnotarchy installer dry-run passed\n'

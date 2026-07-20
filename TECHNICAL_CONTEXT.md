@@ -6,15 +6,22 @@ the installer, package lists, user commands, and default desktop configuration.
 
 The installer starts from the official Arch ISO, wipes one selected disk, and
 builds a complete UEFI system with `systemd-boot`, LUKS, Btrfs subvolumes, and a
-lean Hyprland desktop. It installs this repository into
+Hyprland desktop. It installs this repository into
 `~/.local/share/notarchy`, symlinks every `bin/notarchy-*` command into
-`/usr/local/bin`, and applies the tracked configuration as symlinks into the
-target user's home.
+`/usr/local/bin`, and copies tracked configuration into the target user's home.
+This keeps routine repository updates separate from active user configuration.
 
-## Installed System
+## Software Profiles
 
-The base system is intentionally small and explicit. The official package list
-includes:
+The installer offers three profiles:
+
+- Essential is the default and installs `packages/pacman-essential.txt` plus
+  `packages/aur-essential.txt`.
+- NotArchy defaults installs the complete opinionated package set in
+  `packages/pacman.txt` and `packages/aur.txt`.
+- Custom starts with Essential and adds selections from `packages/options.tsv`.
+
+The complete NotArchy defaults profile includes:
 
 - Core Arch packages: `base`, `base-devel`, `linux`, firmware, CPU microcode,
   Btrfs, LUKS, EFI boot tools, `sudo`, `git`, `go`, `gum`, NetworkManager,
@@ -29,9 +36,8 @@ includes:
   `man-db`, Neovim, `playerctl`, Ripgrep, Rsync, Starship, Tmux, Unzip,
   `wiremix`, and Zoxide.
 
-AUR/proprietary packages are installed after `yay` is bootstrapped. They are
-listed separately in `packages/aur.txt` to keep third-party package decisions
-visible.
+AUR/proprietary packages are installed after `yay` is bootstrapped. They remain
+separate from official packages so third-party package decisions stay visible.
 
 ## Default Desktop
 
@@ -45,7 +51,8 @@ for login. Hyprland configuration is split by responsibility:
 - `config/hypr/looknfeel.conf`: gaps, zero borders, rounded corners, shadow,
   dimming, and HyprMod-derived animation curves.
 - `config/hypr/windows.conf`: window rules for NotArchy floating TUI tools.
-- `config/hypr/workspaces.conf`: default workspace/monitor placement.
+- `config/hypr/workspaces.conf`: optional local workspace rules. Defaults do not
+  assume specific display names.
 - `config/hypr/input.conf`, `envs.conf`, `autostart.conf`, `hypridle.conf`,
   `hyprlock.conf`, and `hyprsunset.conf`: input, environment, startup, idle,
   lock screen, and night light behavior.
@@ -66,8 +73,8 @@ stores the active wallpaper symlink in `~/.config/notarchy/background`.
 
 ## Default App Configuration
 
-Tracked configs under `config/` are symlinked into `$HOME/.config` by
-`notarchy-apply`.
+Tracked configs under `config/` are copied into `$HOME/.config` by
+`notarchy-apply`. Existing different files are backed up first.
 
 - Ghostty uses the TokyoNight theme, JetBrainsMono Nerd Font at 12px, padded
   windows, block cursor, clipboard keybinds, CSI-u keybinds for terminal/Tmux
@@ -92,8 +99,8 @@ Tracked configs under `config/` are symlinked into `$HOME/.config` by
 Installed commands are named `notarchy-*` and are linked into `/usr/local/bin`.
 The important user-facing commands are:
 
-- `notarchy-apply`: symlink tracked config and home files into the user's home.
-  Existing real files are moved to `.bak.<timestamp>` before linking.
+- `notarchy-apply`: copy tracked config and home files into the user's home.
+  Existing different files are moved to `.bak.<timestamp>` before copying.
 - `notarchy-update`: update system packages, AUR packages, and pull this repo,
   but never reapply configs automatically.
 - `notarchy-menu`: Walker-based main menu. Current top-level menus are Install,
@@ -121,9 +128,9 @@ routine updates.
 2. Runs `yay -Syu --needed` when `yay` exists.
 3. Pulls this repository with `git pull --ff-only`.
 
-It explicitly prints that configs were not reapplied. This is intentional:
-updating packages and fetching repo changes should not silently overwrite or
-relink user configuration. Applying new config is a manual action:
+It explicitly prints that active configs were not changed. This is intentional:
+updating packages and fetching repo changes should not silently overwrite user
+configuration. Applying new defaults is a manual action:
 
 ```sh
 notarchy-apply

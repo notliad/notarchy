@@ -78,10 +78,8 @@ child:selected .item-box .item-text {
   font-weight: 500;
 }
 
-/* Mantendo sua preferência de esconder o subtexto para minimalismo,
-   mas adicionei a transição caso queira mostrar no futuro */
 .item-subtext {
-  font-size: 0px;
+  font-size: 13px;
   color: @muted;
 }
 

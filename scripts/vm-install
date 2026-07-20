@@ -7,9 +7,16 @@ export NOTARCHY_KEYBOARD_LAYOUT=br
 export NOTARCHY_KEYBOARD_VARIANT=abnt2
 export NOTARCHY_LOCATION=Juazeiro
 
-exec ./install/notarchy-install \
+password_file=/tmp/notarchy-vm-password
+umask 077
+printf 'notarchy\n' > "$password_file"
+trap 'rm -f "$password_file"' EXIT
+
+./install/notarchy-install \
   --disk /dev/vda \
   --hostname notarchy \
   --username notliad \
-  --password notarchy \
+  --disk-password-file "$password_file" \
+  --user-password-file "$password_file" \
+  --profile notarchy \
   --yes

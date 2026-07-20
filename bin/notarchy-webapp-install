@@ -4,8 +4,13 @@ set -euo pipefail
 read -r -p "Name: " name
 read -r -p "URL: " url
 [[ -n "$name" && -n "$url" ]] || exit 2
+[[ ! "$name" =~ [[:cntrl:]] && "$url" =~ ^https?://[^[:space:]\"]+$ ]] || {
+  printf 'Use a name without control characters and an http(s) URL without spaces.\n' >&2
+  exit 2
+}
 
 slug="$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' '-' | sed 's/^-//; s/-$//')"
+[[ -n "$slug" ]] || { printf 'Name must contain letters or numbers.\n' >&2; exit 2; }
 app_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 mkdir -p "$app_dir"
 
@@ -13,7 +18,7 @@ cat > "$app_dir/notarchy-webapp-$slug.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=$name
-Exec=google-chrome-stable --app="$url" --profile-directory=Default
+Exec=notarchy-browser --app=$url --profile-directory=Default
 Terminal=false
 Categories=Network;
 DESKTOP

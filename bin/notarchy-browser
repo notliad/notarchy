@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if command -v google-chrome-stable >/dev/null 2>&1; then
+  exec google-chrome-stable "$@"
+fi
+
+args=()
+for arg in "$@"; do
+  case "$arg" in
+    --app=*) args+=(--new-window "${arg#--app=}") ;;
+    --incognito) args+=(--private-window) ;;
+    --profile-directory=*) ;;
+    *) args+=("$arg") ;;
+  esac
+done
+exec firefox "${args[@]}"

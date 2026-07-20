@@ -1,0 +1,16 @@
+# id|label|official packages|AUR packages
+calculator|Calculator|gnome-calculator|
+documents|Document viewer|evince|
+drawing|Drawing app|kolourpaint|
+displays|Display configuration|nwg-displays|
+ocr|Screenshot OCR|tesseract tesseract-data-eng|
+audio-pro|ALSA and JACK compatibility|pipewire-alsa pipewire-jack|
+docker|Docker tools|docker docker-buildx docker-compose lazydocker|
+cli|Extra CLI tools|btop eza fastfetch helix lazygit|
+chrome|Google Chrome||google-chrome
+vscode|Visual Studio Code||visual-studio-code-bin
+localsend|LocalSend||localsend-bin
+mutui|Mutui||mutui
+liftoff|Liftoff||liftoff
+launcher-extras|Walker extra providers||elephant-bluetooth elephant-menus elephant-todo
+terminal-effects|Terminal effects||python-terminaltexteffects

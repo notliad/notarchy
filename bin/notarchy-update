@@ -6,7 +6,7 @@ if command -v pacman >/dev/null 2>&1; then
 fi
 
 if command -v yay >/dev/null 2>&1; then
-  yay -Syu --needed
+  yay -Sua --needed
 fi
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,5 +14,4 @@ if git -C "$repo_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   git -C "$repo_root" pull --ff-only
 fi
 
-printf 'Notarchy configs were not reapplied. Run notarchy-apply manually when wanted.\n'
-
+printf 'NotArchy updated. Active configs were not changed; run notarchy-apply to apply new defaults.\n'

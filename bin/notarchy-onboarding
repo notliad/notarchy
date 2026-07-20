@@ -9,11 +9,13 @@ waybar_style="$notarchy_dir/waybar-style.css"
 waybar_config="$notarchy_dir/waybar-config.jsonc"
 seen_file="$notarchy_dir/onboarding-seen"
 skip_apply="${NOTARCHY_ONBOARDING_SKIP_APPLY:-0}"
+first_run=false
+[[ "${1:-}" == "--first-run" ]] && first_run=true
 
 all_modules=(
   hyprland/workspaces
   custom/scratchpad
-  custom/mpris
+  mpris
   clock
   clock#2
   custom/weather
@@ -26,13 +28,13 @@ all_modules=(
   battery
 )
 
-default_modules="hyprland/workspaces,custom/scratchpad,custom/mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery"
+default_modules="hyprland/workspaces,custom/scratchpad,mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery"
 
 module_label() {
   case "$1" in
     hyprland/workspaces) printf 'Workspaces' ;;
     custom/scratchpad) printf 'Scratchpad' ;;
-    custom/mpris) printf 'Media' ;;
+    mpris) printf 'Media' ;;
     clock) printf 'Date' ;;
     clock#2) printf 'Time' ;;
     custom/weather) printf 'Weather' ;;
@@ -50,7 +52,7 @@ module_description() {
   case "$1" in
     hyprland/workspaces) printf 'Hyprland workspace dots' ;;
     custom/scratchpad) printf 'Scratchpad workspace toggle' ;;
-    custom/mpris) printf 'Current media title and controls' ;;
+    mpris) printf 'Current media title and controls' ;;
     clock) printf 'Localized date and calendar' ;;
     clock#2) printf 'Current time' ;;
     custom/weather) printf 'Temperature and forecast tooltip' ;;
@@ -70,6 +72,7 @@ mkdir -p "$notarchy_dir"
 background="${NOTARCHY_WAYBAR_BACKGROUND:-#c7c7c7}"
 foreground="${NOTARCHY_WAYBAR_FOREGROUND:-#131313}"
 modules="${NOTARCHY_WAYBAR_MODULES:-$default_modules}"
+modules="${modules//custom\/mpris/mpris}"
 keyboard_layout="${NOTARCHY_KEYBOARD_LAYOUT:-br}"
 keyboard_variant="${NOTARCHY_KEYBOARD_VARIANT:-abnt2}"
 weather_location="${NOTARCHY_LOCATION:-}"
@@ -172,13 +175,13 @@ pick_modules() {
     done
     zenity --list --checklist --multiple --separator=, --print-column=2 \
       --title "NotArchy Setup" \
-      --text "Choose Waybar modules" \
+      --text "Step 3 of 3 - Choose Waybar modules" \
       --column "Use" --column "Module" --column "Name" --column "Description" \
       "${args[@]}"
     return
   fi
   if have_gum; then
-    selected="$(printf '%s\n' "${all_modules[@]}" | gum choose --no-limit --ordered --selected "$modules" --header "Waybar modules")"
+    selected="$(printf '%s\n' "${all_modules[@]}" | gum choose --no-limit --ordered --selected "$modules" --header "Step 3 of 3 - Waybar modules")"
     printf '%s\n' "${selected//$'\n'/,}"
     return
   fi
@@ -187,7 +190,7 @@ pick_modules() {
       picked+=("$module")
     fi
   done
-  printf 'Waybar modules, comma-separated [%s]: ' "$(join_by , "${picked[@]}")"
+  printf 'Step 3 of 3 - Waybar modules, comma-separated [%s]: ' "$(join_by , "${picked[@]}")"
   read -r selected
   printf '%s\n' "${selected:-$(join_by , "${picked[@]}")}"
 }
@@ -245,7 +248,7 @@ write_waybar_config() {
 
   contains_module hyprland/workspaces && left+=("group/left-modules")
   contains_module custom/scratchpad && left+=("custom/scratchpad")
-  contains_module custom/mpris && left+=("custom/mpris")
+  contains_module mpris && left+=("mpris")
 
   clock_modules="$(selected_group clock clock#2 custom/weather)"
   [[ "$clock_modules" != "[]" ]] && center+=("group/clock-weather" "custom/spacer")
@@ -302,9 +305,34 @@ apply_preferences() {
 }
 
 ask_system_fields() {
-  keyboard_layout="$(ask "Keyboard layout" "$keyboard_layout" NOTARCHY_ONBOARDING_KEYBOARD_LAYOUT)"
-  keyboard_variant="$(ask "Keyboard variant" "$keyboard_variant" NOTARCHY_ONBOARDING_KEYBOARD_VARIANT)"
-  timezone="$(ask "Timezone" "$timezone" NOTARCHY_ONBOARDING_TIMEZONE)"
+  timezone="$(ask "Step 1 of 3 - Timezone" "$timezone" NOTARCHY_ONBOARDING_TIMEZONE)"
+}
+
+welcome() {
+  local action="${NOTARCHY_ONBOARDING_ACTION:-}"
+  if [[ -z "$action" ]]; then
+    if have_zenity; then
+      action="$(zenity --list --title 'Welcome to NotArchy' \
+        --text 'Personalize your timezone, Waybar appearance, and modules. You can run this again from the NotArchy menu.' \
+        --column 'Choose' 'Personalize (3 steps)' 'Use defaults and skip')"
+    elif have_gum; then
+      action="$(printf '%s\n' 'Personalize (3 steps)' 'Use defaults and skip' | gum choose --header 'Welcome to NotArchy')"
+    else
+      printf 'Welcome to NotArchy. Personalize timezone and Waybar now? [Y/n]: '
+      read -r action
+      [[ ! "$action" =~ ^[Nn] ]] && action=personalize
+    fi
+  fi
+
+  case "$action" in
+    personalize|Personalize*) ;;
+    *defaults*|*Defaults*|skip|Skip*|"")
+      : > "$seen_file"
+      printf 'Using NotArchy defaults. Run notarchy-onboarding to personalize later.\n'
+      exit 0
+      ;;
+    *) printf 'Invalid onboarding action: %s\n' "$action" >&2; exit 2 ;;
+  esac
 }
 
 if [[ "${1:-}" == "--ensure-defaults" ]]; then
@@ -313,12 +341,12 @@ if [[ "${1:-}" == "--ensure-defaults" ]]; then
   exit 0
 fi
 
-: > "$seen_file"
+"$first_run" && welcome
 
-background="$(ask_color "Waybar background" "$background" NOTARCHY_ONBOARDING_BACKGROUND)"
-foreground="$(ask_color "Waybar foreground" "$foreground" NOTARCHY_ONBOARDING_FOREGROUND)"
-modules="$(pick_modules)"
 ask_system_fields
+background="$(ask_color "Step 2 of 3 - Waybar background" "$background" NOTARCHY_ONBOARDING_BACKGROUND)"
+foreground="$(ask_color "Step 2 of 3 - Waybar foreground" "$foreground" NOTARCHY_ONBOARDING_FOREGROUND)"
+modules="$(pick_modules)"
 
 valid_hex "$background" || { printf 'Invalid background color: %s\n' "$background" >&2; exit 1; }
 valid_hex "$foreground" || { printf 'Invalid foreground color: %s\n' "$foreground" >&2; exit 1; }
@@ -328,7 +356,7 @@ valid_modules || { printf 'Invalid Waybar module list: %s\n' "$modules" >&2; exi
 [[ ! "$weather_location" =~ [[:cntrl:]] ]] || { printf 'Invalid weather location.\n' >&2; exit 1; }
 
 if contains_module custom/weather; then
-  weather_location="$(ask "Weather location" "$weather_location" NOTARCHY_ONBOARDING_LOCATION)"
+  weather_location="$(ask "Step 3 of 3 - Weather location" "$weather_location" NOTARCHY_ONBOARDING_LOCATION)"
 else
   weather_location=""
 fi
@@ -337,6 +365,7 @@ fi
 write_preferences
 write_waybar_config
 apply_preferences
+: > "$seen_file"
 
 if have_zenity; then
   zenity --info --title "NotArchy Setup" --text "Setup saved."

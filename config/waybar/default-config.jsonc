@@ -4,17 +4,13 @@
   "position": "top",
   "spacing": 0,
   "height": 26,
-  "modules-left": ["group/left-modules", "custom/scratchpad", "custom/mpris"],
+  "modules-left": ["group/left-modules", "custom/scratchpad", "mpris"],
   "modules-center": ["group/clock-weather", "custom/spacer"],
   "modules-right": ["group/perf-monitor", "group/right-modules", "battery"],
   "hyprland/workspaces": {
     "format": "{icon}",
     "format-icons": {
       "active": "󱓻",
-    },
-    "persistent-workspaces": {
-      "eDP-1": 1,
-      "HDMI-A-1": [2, 3, 4, 5],
     },
   },
   "cpu": {
@@ -38,7 +34,7 @@
         "today": "<span background='#2563eb' color='#fff'>{}</span>",
       },
     },
-    "on-click": "google-chrome-stable https://calendar.google.com/calendar/u/0/r --profile-directory='Profile 1'",
+    "on-click": "notarchy-browser https://calendar.google.com/calendar/u/0/r --profile-directory='Profile 1'",
   },
   "clock#2": {
     "format": "{:L%H:%M}",
@@ -152,9 +148,15 @@
     "on-click": "hyprctl dispatch togglespecialworkspace scratchpad",
     "tooltip": true,
   },
-  "custom/mpris": {
-    "exec": "playerctl metadata --format '{{status}} {{title}} - {{artist}}' | sed 's/Playing/▶/;s/Paused/⏸/' | cut -c1-40",
-    "interval": 1,
+  "mpris": {
+    "format": "{status_icon} {title} - {artist}",
+    "format-paused": "{status_icon} {title} - {artist}",
+    "max-length": 40,
+    "status-icons": {
+      "playing": "▶",
+      "paused": "⏸",
+      "stopped": "■",
+    },
     "on-click": "playerctl play-pause",
     "on-scroll-up": "playerctl next",
     "on-scroll-down": "playerctl previous",

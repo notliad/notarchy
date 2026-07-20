@@ -1,0 +1,11 @@
+walker-bin
+elephant
+elephant-calc
+elephant-clipboard
+elephant-desktopapplications
+elephant-files
+elephant-providerlist
+elephant-runner
+elephant-symbols
+elephant-unicode
+elephant-websearch

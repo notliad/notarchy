@@ -6,19 +6,31 @@ dry_run=false
 target_disk=""
 hostname=""
 username=""
-install_password=""
-install_password_confirm=""
+disk_password=""
+disk_password_confirm=""
+user_password=""
+user_password_confirm=""
+disk_password_file=""
+user_password_file=""
 assume_yes=false
 tty=/dev/tty
 keyboard_layout="${NOTARCHY_KEYBOARD_LAYOUT:-br}"
 keyboard_variant="${NOTARCHY_KEYBOARD_VARIANT:-abnt2}"
-weather_location="${NOTARCHY_LOCATION:-}"
+console_keymap="${NOTARCHY_CONSOLE_KEYMAP:-}"
+package_profile="${NOTARCHY_PACKAGE_PROFILE:-}"
+custom_programs="${NOTARCHY_CUSTOM_PROGRAMS:-}"
+current_stage="preflight"
+installation_started=false
+official_packages=()
+aur_packages=()
 
 usage() {
   cat <<USAGE
-Usage: ${0##*/} [--dry-run] [--disk /dev/XXX] [--hostname NAME] [--username USER] [--password PASS] [--yes]
+Usage: ${0##*/} [--dry-run] [--disk /dev/XXX] [--hostname NAME] [--username USER]
+       [--profile essential|notarchy|custom] [--programs ID,ID]
+       [--disk-password-file FILE] [--user-password-file FILE] [--yes]
 
-Destructive whole-disk Arch installer for Notarchy V1.
+Destructive whole-disk Arch installer for NotArchy.
 USAGE
 }
 
@@ -28,12 +40,43 @@ while [[ $# -gt 0 ]]; do
     --disk) target_disk="${2:-}"; shift 2 ;;
     --hostname) hostname="${2:-}"; shift 2 ;;
     --username) username="${2:-}"; shift 2 ;;
-    --password) install_password="${2:-}"; install_password_confirm="${2:-}"; shift 2 ;;
+    --profile) package_profile="${2:-}"; shift 2 ;;
+    --programs) custom_programs="${2:-}"; shift 2 ;;
+    --disk-password-file) disk_password_file="${2:-}"; shift 2 ;;
+    --user-password-file) user_password_file="${2:-}"; shift 2 ;;
     --yes) assume_yes=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
   esac
 done
+
+stage() {
+  current_stage="$2"
+  ui_info "[$1/5] $2"
+}
+
+cleanup() {
+  local status=$?
+  if "$installation_started" && ! "$dry_run"; then
+    close_target || true
+  fi
+  if (( status != 0 )); then
+    printf '\nInstallation failed during: %s\nFix the reported problem and start the installer again.\n' "$current_stage" >&2
+  fi
+  exit "$status"
+}
+
+trap cleanup EXIT
+
+close_target() {
+  sync
+  if mountpoint -q /mnt; then
+    umount -R /mnt
+  fi
+  if cryptsetup status cryptroot >/dev/null 2>&1; then
+    cryptsetup close cryptroot
+  fi
+}
 
 run() {
   if "$dry_run"; then
@@ -124,10 +167,12 @@ write_target_files() {
   genfstab -U /mnt >> /mnt/etc/fstab
   printf '%s\n%s\n' 'en_US.UTF-8 UTF-8' 'pt_BR.UTF-8 UTF-8' > /mnt/etc/locale.gen
   printf 'LANG=en_US.UTF-8\n' > /mnt/etc/locale.conf
+  printf 'KEYMAP=%s\n' "$console_keymap" > /mnt/etc/vconsole.conf
   printf '%s\n' "$hostname" > /mnt/etc/hostname
   printf '127.0.0.1 localhost\n::1 localhost\n127.0.1.1 %s.localdomain %s\n' "$hostname" "$hostname" > /mnt/etc/hosts
-  printf 'root:%s\n' "$install_password" | arch-chroot /mnt chpasswd
-  printf '%s:%s\n' "$username" "$install_password" | arch-chroot /mnt chpasswd
+  arch-chroot /mnt passwd -l root
+  printf '%s:%s\n' "$username" "$user_password" | arch-chroot /mnt chpasswd
+  unset user_password user_password_confirm
 
   cat > /mnt/boot/loader/loader.conf <<BOOT
 default notarchy.conf
@@ -162,13 +207,13 @@ require_root() {
 
 require_uefi() {
   [[ -d /sys/firmware/efi/efivars ]] || {
-    printf 'Notarchy V1 is UEFI-only.\n' >&2
+    printf 'NotArchy is UEFI-only.\n' >&2
     exit 1
   }
 }
 
 require_network() {
-  ping -c 1 -W 3 archlinux.org >/dev/null 2>&1 || {
+  curl -fsS --max-time 10 https://archlinux.org/ >/dev/null || {
     printf 'Network check failed. Connect to the internet first.\n' >&2
     exit 1
   }
@@ -185,10 +230,7 @@ validate_name() {
 validate_preferences() {
   validate_name 'keyboard layout' "$keyboard_layout" '^[A-Za-z0-9_,+-]+$'
   validate_name 'keyboard variant' "$keyboard_variant" '^[A-Za-z0-9_,+-]*$'
-  [[ ! "$weather_location" =~ [[:cntrl:]] ]] || {
-    printf 'Invalid weather location.\n' >&2
-    exit 1
-  }
+  validate_name 'console keymap' "$console_keymap" '^[A-Za-z0-9_-]+$'
 }
 
 part_suffix() {
@@ -196,15 +238,12 @@ part_suffix() {
 }
 
 pick_disk() {
-  local disks=() choice i disk model size options=()
-  mapfile -t disks < <(lsblk -dn -e 7,11 -o PATH,MODEL,SIZE | grep -v '^/dev/zram')
+  local disks=() choice i disk options=()
+  mapfile -t disks < <(lsblk -dnpo PATH,TYPE -e 7,11 | awk '$2 == "disk" { print $1 }')
 
   if [[ -n "$target_disk" ]]; then
-    "$dry_run" || [[ -b "$target_disk" ]] || {
-      printf 'Not a block device: %s\n' "$target_disk" >&2
-      exit 1
-    }
-    printf 'Selected disk: %s\n' "$target_disk"
+    "$dry_run" || validate_target_disk
+    ui_info "Selected disk: $(disk_summary "$target_disk")"
     return
   fi
 
@@ -215,8 +254,8 @@ pick_disk() {
 
   ui_info "Choose the disk to erase and install NotArchy:"
   for i in "${!disks[@]}"; do
-    read -r disk model size <<<"${disks[$i]}"
-    options+=("$((i + 1))) $disk $size $model")
+    disk="${disks[$i]}"
+    options+=("$((i + 1))) $(disk_summary "$disk")")
   done
 
   printf 'Disks:\n'
@@ -232,8 +271,36 @@ pick_disk() {
     exit 1
   }
 
-  read -r target_disk _ <<<"${disks[$((choice - 1))]}"
-  ui_info "Selected disk: $target_disk. This disk will be erased."
+  target_disk="${disks[$((choice - 1))]}"
+  validate_target_disk
+  ui_info "Selected disk: $(disk_summary "$target_disk")"
+}
+
+disk_summary() {
+  if "$dry_run" && [[ ! -b "$1" ]]; then
+    printf '%s (dry run)' "$1"
+    return
+  fi
+  lsblk -dn -o PATH,SIZE,MODEL,TRAN "$1" | sed 's/[[:space:]]*$//'
+}
+
+validate_target_disk() {
+  [[ -b "$target_disk" && "$(lsblk -dnro TYPE "$target_disk")" == disk ]] || {
+    printf 'Not an installable disk: %s\n' "$target_disk" >&2
+    exit 1
+  }
+  ! lsblk -nrpo MOUNTPOINT "$target_disk" | grep -q '[^[:space:]]' || {
+    printf 'Refusing mounted disk: %s\n' "$target_disk" >&2
+    exit 1
+  }
+  (( $(lsblk -bdnro SIZE "$target_disk") >= 21474836480 )) || {
+    printf 'Disk is smaller than the required 20 GiB: %s\n' "$target_disk" >&2
+    exit 1
+  }
+  ! cryptsetup status cryptroot >/dev/null 2>&1 || {
+    printf 'The cryptroot mapping already exists. Close it before installing.\n' >&2
+    exit 1
+  }
 }
 
 prompt_identity() {
@@ -242,12 +309,31 @@ prompt_identity() {
   validate_name hostname "$hostname" '^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$'
   validate_name username "$username" '^[a-z_][a-z0-9_-]{0,31}$'
 
-  if [[ -z "$install_password" ]]; then
-    ask_secret 'Password for disk, user, and root: ' install_password
-    ask_secret 'Confirm password: ' install_password_confirm
+  if [[ -n "$disk_password_file" ]]; then
+    [[ -r "$disk_password_file" ]] || { printf 'Cannot read disk password file.\n' >&2; exit 1; }
+    disk_password="$(head -n 1 -- "$disk_password_file")"
+    disk_password_confirm="$disk_password"
   fi
-  [[ -n "$install_password" && "$install_password" == "$install_password_confirm" ]] || {
-    printf 'Passwords are empty or do not match.\n' >&2
+  if [[ -z "$disk_password" ]]; then
+    ask_secret 'Disk encryption password: ' disk_password
+    ask_secret 'Confirm disk encryption password: ' disk_password_confirm
+  fi
+  [[ -n "$disk_password" && "$disk_password" == "$disk_password_confirm" ]] || {
+    printf 'Disk passwords are empty or do not match.\n' >&2
+    exit 1
+  }
+
+  if [[ -n "$user_password_file" ]]; then
+    [[ -r "$user_password_file" ]] || { printf 'Cannot read user password file.\n' >&2; exit 1; }
+    user_password="$(head -n 1 -- "$user_password_file")"
+    user_password_confirm="$user_password"
+  fi
+  if [[ -z "$user_password" ]]; then
+    ask_secret 'User password: ' user_password
+    ask_secret 'Confirm user password: ' user_password_confirm
+  fi
+  [[ -n "$user_password" && "$user_password" == "$user_password_confirm" ]] || {
+    printf 'User passwords are empty or do not match.\n' >&2
     exit 1
   }
 }
@@ -264,31 +350,138 @@ prompt_preferences() {
       ask "Keyboard variant [$keyboard_variant]: " answer
       [[ -n "$answer" ]] && keyboard_variant="$answer"
     fi
-    if [[ -z ${NOTARCHY_LOCATION+x} ]]; then
-      ask "Weather location [$weather_location]: " answer
-      [[ -n "$answer" ]] && weather_location="$answer"
+  fi
+
+  if [[ -z "$console_keymap" ]]; then
+    if [[ "$keyboard_layout:$keyboard_variant" == br:abnt2 ]]; then
+      console_keymap=br-abnt2
+    else
+      console_keymap="${keyboard_layout%%,*}"
     fi
   fi
 
+  if ! "$dry_run" && ! "$assume_yes" && [[ -z ${NOTARCHY_CONSOLE_KEYMAP+x} ]]; then
+      ask "Console keymap [$console_keymap]: " answer
+      [[ -n "$answer" ]] && console_keymap="$answer"
+  fi
+
   validate_preferences
+  "$dry_run" || loadkeys "$console_keymap"
+}
+
+pick_package_profile() {
+  local choice labels=() selected=() id label official aur
+
+  if [[ -z "$package_profile" ]]; then
+    if "$dry_run" || "$assume_yes"; then
+      package_profile=essential
+    elif have_gum; then
+      choice="$(gum choose --header 'Software profile' \
+        'Essential (recommended)' 'NotArchy defaults' 'Custom selection' <"$tty")"
+      case "$choice" in
+        Essential*) package_profile=essential ;;
+        NotArchy*) package_profile=notarchy ;;
+        Custom*) package_profile=custom ;;
+        *) exit 1 ;;
+      esac
+    else
+      printf 'Software profiles:\n  1) Essential (recommended)\n  2) NotArchy defaults\n  3) Custom selection\n'
+      ask 'Profile [1]: ' choice
+      case "${choice:-1}" in
+        1) package_profile=essential ;;
+        2) package_profile=notarchy ;;
+        3) package_profile=custom ;;
+        *) printf 'Invalid software profile.\n' >&2; exit 1 ;;
+      esac
+    fi
+  fi
+
+  [[ "$package_profile" =~ ^(essential|notarchy|custom)$ ]] || {
+    printf 'Invalid software profile: %s\n' "$package_profile" >&2
+    exit 1
+  }
+
+  if [[ "$package_profile" != custom || -n "$custom_programs" || "$dry_run" == true || "$assume_yes" == true ]]; then
+    return 0
+  fi
+
+  while IFS='|' read -r id label official aur; do
+    [[ -n "$id" && "$id" != \#* ]] || continue
+    labels+=("$label")
+  done < "$repo_root/packages/options.tsv"
+
+  if have_gum; then
+    mapfile -t selected < <(gum choose --no-limit --height 16 --header 'Optional programs' "${labels[@]}" <"$tty")
+    for choice in "${selected[@]}"; do
+      while IFS='|' read -r id label official aur; do
+        [[ "$label" == "$choice" ]] && custom_programs+="${custom_programs:+,}$id"
+      done < "$repo_root/packages/options.tsv"
+    done
+  else
+    printf 'Optional program IDs (comma-separated, blank for none):\n'
+    while IFS='|' read -r id label official aur; do
+      [[ -n "$id" && "$id" != \#* ]] && printf '  %-18s %s\n' "$id" "$label"
+    done < "$repo_root/packages/options.tsv"
+    ask 'Programs: ' custom_programs
+  fi
+}
+
+read_package_file() {
+  grep -Ev '^\s*(#|$)' "$1"
+}
+
+load_packages() {
+  local id label official aur wanted found
+  local -a extra_official extra_aur picked
+
+  case "$package_profile" in
+    essential)
+      mapfile -t official_packages < <(read_package_file "$repo_root/packages/pacman-essential.txt")
+      mapfile -t aur_packages < <(read_package_file "$repo_root/packages/aur-essential.txt")
+      ;;
+    notarchy)
+      mapfile -t official_packages < <(read_package_file "$repo_root/packages/pacman.txt")
+      mapfile -t aur_packages < <(read_package_file "$repo_root/packages/aur.txt")
+      ;;
+    custom)
+      mapfile -t official_packages < <(read_package_file "$repo_root/packages/pacman-essential.txt")
+      mapfile -t aur_packages < <(read_package_file "$repo_root/packages/aur-essential.txt")
+      IFS=',' read -ra picked <<< "$custom_programs"
+      for wanted in "${picked[@]}"; do
+        [[ -n "$wanted" ]] || continue
+        found=false
+        while IFS='|' read -r id label official aur; do
+          [[ "$id" == "$wanted" ]] || continue
+          read -ra extra_official <<< "$official"
+          read -ra extra_aur <<< "$aur"
+          official_packages+=("${extra_official[@]}")
+          aur_packages+=("${extra_aur[@]}")
+          found=true
+          break
+        done < "$repo_root/packages/options.tsv"
+        "$found" || { printf 'Unknown custom program: %s\n' "$wanted" >&2; exit 1; }
+      done
+      mapfile -t official_packages < <(printf '%s\n' "${official_packages[@]}" | sort -u)
+      mapfile -t aur_packages < <(printf '%s\n' "${aur_packages[@]}" | sort -u)
+      ;;
+  esac
+
+  ui_info "Software: $package_profile (${#official_packages[@]} official, ${#aur_packages[@]} AUR)"
 }
 
 confirm_install() {
-  local summary="Install NotArchy on $target_disk as $username@$hostname. This erases $target_disk."
+  local answer summary="Install NotArchy on $(disk_summary "$target_disk") as $username@$hostname using the $package_profile profile."
 
   if "$dry_run"; then
     ui_info "$summary"
     return
   fi
+  lsblk -o PATH,SIZE,FSTYPE,MOUNTPOINTS,MODEL,TRAN "$target_disk"
   "$assume_yes" && return
 
-  if have_gum; then
-    gum confirm "$summary" --affirmative "Install" --negative "Cancel" <"$tty" || exit 1
-  else
-    local answer
-    ask "$summary Type yes to continue: " answer
-    [[ "$answer" == "yes" ]] || exit 1
-  fi
+  ui_info "$summary"
+  ask "Type $target_disk to erase it: " answer
+  [[ "$answer" == "$target_disk" ]] || { printf 'Installation cancelled.\n'; exit 0; }
 }
 
 write_user_preferences() {
@@ -301,13 +494,13 @@ write_user_preferences() {
 
   install -d -m 0755 "$config_dir"
   {
-    printf 'NOTARCHY_LOCATION=%q\n' "$weather_location"
+    printf 'NOTARCHY_LOCATION=\n'
     printf 'NOTARCHY_KEYBOARD_LAYOUT=%q\n' "$keyboard_layout"
     printf 'NOTARCHY_KEYBOARD_VARIANT=%q\n' "$keyboard_variant"
     printf 'NOTARCHY_TIMEZONE=UTC\n'
     printf 'NOTARCHY_WAYBAR_BACKGROUND=#c7c7c7\n'
     printf 'NOTARCHY_WAYBAR_FOREGROUND=#131313\n'
-    printf 'NOTARCHY_WAYBAR_MODULES=hyprland/workspaces,custom/scratchpad,custom/mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery\n'
+    printf 'NOTARCHY_WAYBAR_MODULES=hyprland/workspaces,custom/scratchpad,mpris,clock,clock#2,custom/weather,cpu,memory,tray,bluetooth,network,pulseaudio,battery\n'
   } > "$config_dir/user.env"
   {
     printf 'input {\n'
@@ -327,9 +520,9 @@ format_and_open_luks() {
     return
   fi
 
-  printf '%s' "$install_password" | cryptsetup luksFormat --batch-mode --type luks2 --key-file - "$root_part"
-  printf '%s' "$install_password" | cryptsetup open --key-file - "$root_part" cryptroot
-  unset install_password_confirm
+  printf '%s' "$disk_password" | cryptsetup luksFormat --batch-mode --type luks2 --key-file - "$root_part"
+  printf '%s' "$disk_password" | cryptsetup open --key-file - "$root_part" cryptroot
+  unset disk_password disk_password_confirm
 }
 
 install_yay() {
@@ -353,12 +546,10 @@ install_yay() {
 }
 
 install_aur_packages() {
-  local aur_packages=()
-  mapfile -t aur_packages < <(grep -Ev '^\s*(#|$)' "$repo_root/packages/aur.txt")
   ((${#aur_packages[@]} == 0)) && return
 
   printf '\nInstalling AUR/proprietary packages: %s\n' "${aur_packages[*]}"
-  printf 'These include third-party license terms. Continuing by V1 policy.\n'
+  printf 'These may include third-party license terms and were selected by the software profile.\n'
   retry arch-chroot /mnt sudo -u "$username" yay -S --needed --noconfirm "${aur_packages[@]}"
 }
 
@@ -366,7 +557,7 @@ install_dotfiles() {
   run mkdir -p "/mnt/home/$username/.local/share"
   run arch-chroot /mnt chown -R "$username:$username" "/home/$username/.local"
   run mkdir -p "/mnt/home/$username/.local/share/notarchy"
-  run rsync -a --delete --exclude .git --exclude .notarchy "$repo_root/" "/mnt/home/$username/.local/share/notarchy/"
+  run rsync -a --delete --exclude .notarchy "$repo_root/" "/mnt/home/$username/.local/share/notarchy/"
   run arch-chroot /mnt chown -R "$username:$username" "/home/$username/.local/share/notarchy"
   run mkdir -p "/mnt/home/$username/Pictures/wallpapers"
   run rsync -a --delete "$repo_root/assets/wallpapers/" "/mnt/home/$username/Pictures/wallpapers/"
@@ -387,6 +578,7 @@ install_plymouth_theme() {
 main() {
   ui_title
 
+  stage 1 "Preflight checks"
   if ! "$dry_run"; then
     require_root
     require_uefi
@@ -394,12 +586,22 @@ main() {
     timedatectl set-ntp true || true
   fi
 
+  stage 2 "Disk and keyboard"
   pick_disk
-  prompt_identity
   prompt_preferences
+
+  stage 3 "Identity and encryption"
+  prompt_identity
+
+  stage 4 "Software selection"
+  pick_package_profile
+  load_packages
   confirm_install
 
-  local suffix efi_part root_part uuid official_packages
+  stage 5 "Installing system"
+  installation_started=true
+
+  local suffix efi_part root_part uuid
   suffix="$(part_suffix "$target_disk")"
   efi_part="${target_disk}${suffix}1"
   root_part="${target_disk}${suffix}2"
@@ -422,7 +624,6 @@ main() {
   run mount -o noatime,compress=zstd,subvol=@home /dev/mapper/cryptroot /mnt/home
   run mount "$efi_part" /mnt/boot
 
-  mapfile -t official_packages < <(grep -Ev '^\s*(#|$)' "$repo_root/packages/pacman.txt")
   run_step "Installing base system" pacstrap -K /mnt "${official_packages[@]}"
 
   run arch-chroot /mnt ln -sf /usr/share/zoneinfo/UTC /etc/localtime
@@ -435,7 +636,9 @@ main() {
   run_step "Generating locales" arch-chroot /mnt locale-gen
 
   run arch-chroot /mnt useradd -m -G wheel -s /bin/bash "$username"
-  run arch-chroot /mnt usermod -aG docker "$username"
+  if [[ " ${official_packages[*]} " == *" docker "* ]]; then
+    run arch-chroot /mnt usermod -aG docker "$username"
+  fi
   run sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /mnt/etc/sudoers
 
   if "$dry_run"; then
@@ -450,9 +653,12 @@ main() {
   run mkdir -p /mnt/boot/EFI/BOOT
   run cp -f /mnt/boot/EFI/systemd/systemd-bootx64.efi /mnt/boot/EFI/BOOT/BOOTX64.EFI
   write_target_files "$uuid"
-  run arch-chroot /mnt systemctl enable NetworkManager bluetooth docker.socket greetd power-profiles-daemon
+  run arch-chroot /mnt systemctl enable NetworkManager bluetooth greetd power-profiles-daemon
+  if [[ " ${official_packages[*]} " == *" docker "* ]]; then
+    run arch-chroot /mnt systemctl enable docker.socket
+  fi
 
-  if ! "$dry_run"; then
+  if ! "$dry_run" && ((${#aur_packages[@]} > 0)); then
     ui_info "Installing yay"
     install_yay
     ui_info "Installing AUR packages"
@@ -460,11 +666,22 @@ main() {
   fi
   ui_info "Applying NotArchy configs"
   install_dotfiles
+  if ! "$dry_run"; then
+    ui_info "Finalizing installation"
+    close_target
+  fi
+  installation_started=false
 
   if have_gum; then
-    gum style --border rounded --border-foreground 114 --padding "1 3" --margin "1 0" "NotArchy install complete. Reboot when ready."
+    gum style --border rounded --border-foreground 114 --padding "1 3" --margin "1 0" \
+      "Install complete" \
+      "Disk: $target_disk (LUKS encrypted)" \
+      "Login: $username@$hostname" \
+      "Software: $package_profile" \
+      "Reboot and sign in. First login offers optional personalization."
   else
-    printf '\nNotArchy install complete. Reboot when ready.\n'
+    printf '\nInstall complete.\nDisk: %s (LUKS encrypted)\nLogin: %s@%s\nSoftware: %s\nReboot and sign in. First login offers optional personalization.\n' \
+      "$target_disk" "$username" "$hostname" "$package_profile"
   fi
 }
 
