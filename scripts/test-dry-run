@@ -47,7 +47,7 @@ done
 notarchy_output="$(install_dry_run notarchy)"
 grep -Fq 'Software: notarchy (84 official, 20 AUR)' <<<"$notarchy_output"
 grep -Fq 'systemctl enable docker.socket' <<<"$notarchy_output"
-grep -Fq 'env HOME="/home/$username" bash -c' "$repo_root/install/notarchy-install"
+grep -Fq 'env HOME="/home/$username" GIT_CONFIG_NOSYSTEM=1 bash -c' "$repo_root/install/notarchy-install"
 ! grep -Fq 'sudo -u "$username" bash -lc' "$repo_root/install/notarchy-install"
 
 custom_output="$(install_dry_run custom --programs chrome,docker)"
