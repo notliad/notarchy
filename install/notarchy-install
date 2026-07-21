@@ -630,9 +630,9 @@ install_yay() {
     set -euo pipefail
     mkdir -p ~/.cache
     cd ~/.cache
-    rm -rf yay yay-build
-    git clone https://aur.archlinux.org/yay.git
-    mv yay yay-build
+    rm -rf yay-bin yay-build
+    git clone https://aur.archlinux.org/yay-bin.git
+    mv yay-bin yay-build
     cd yay-build
     makepkg --noconfirm
   '
