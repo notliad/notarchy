@@ -12,5 +12,5 @@ vscode|Visual Studio Code||visual-studio-code-bin
 localsend|LocalSend||localsend-bin
 mutui|Mutui||mutui
 liftoff|Liftoff||liftoff
-launcher-extras|Walker extra providers||elephant-bluetooth elephant-menus elephant-todo
+launcher-extras|Walker extra providers||elephant-bluetooth-bin elephant-menus-bin elephant-todo-bin
 terminal-effects|Terminal effects||python-terminaltexteffects

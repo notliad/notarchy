@@ -625,12 +625,13 @@ ensure_user_dns() {
 }
 
 install_yay() {
+  printf 'Installing yay-bin bootstrap (prebuilt yay, no Go compile).\n'
   arch-chroot /mnt rm -rf "/home/$username/.cache/yay-build"
   retry arch-chroot /mnt sudo -u "$username" env HOME="/home/$username" GIT_CONFIG_NOSYSTEM=1 bash -c '
     set -euo pipefail
     mkdir -p ~/.cache
     cd ~/.cache
-    rm -rf yay-bin yay-build
+    rm -rf yay yay-bin yay-build
     git clone https://aur.archlinux.org/yay-bin.git
     mv yay-bin yay-build
     cd yay-build

@@ -36,8 +36,10 @@ The complete NotArchy defaults profile includes:
   `man-db`, Neovim, `playerctl`, Ripgrep, Rsync, Starship, Tmux, Unzip,
   `wiremix`, and Zoxide.
 
-AUR/proprietary packages are installed after `yay` is bootstrapped. They remain
-separate from official packages so third-party package decisions stay visible.
+AUR/proprietary packages are installed after `yay-bin` is bootstrapped. They
+remain separate from official packages so third-party package decisions stay
+visible. Prebuilt `-bin` variants are preferred for installer-critical packages
+to avoid long source builds in the Arch ISO.
 
 ## Default Desktop
 
