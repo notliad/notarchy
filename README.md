@@ -85,12 +85,14 @@ scripts/test-vm --reset
 
 ```sh
 notarchy-apply
-notarchy-update
 ```
-
 `notarchy-apply` copies every file under `config/` to the matching path under
 `$HOME/.config`. Existing different files are moved to `.bak.<timestamp>` first.
 
+
+```sh
+notarchy-update
+```
 `notarchy-update` updates system packages, AUR packages, and pulls this repo. It
 does not change active configs automatically. Run `notarchy-apply` when you want
 new tracked defaults. First login offers an optional three-step personalization
