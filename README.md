@@ -25,7 +25,7 @@ Omarchy is still the reference and inspiration. The nice ideas I like are copied
 shamelessly, but deliberately; NotArchy does not vendor Omarchy or follow its
 update/migration model.
 
-## Install from the Arch ISO
+## Install from the Arch ISO 
 
 Before starting, back up the target disk, boot the official Arch ISO in UEFI
 mode, and connect to the internet. For Wi-Fi, use `iwctl` from the ISO.
